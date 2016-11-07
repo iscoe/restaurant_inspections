@@ -30,12 +30,11 @@ setdiff(inspection$HSISID, restaurant_info$HSISID) %>% length()  # > 1,000 mis-m
 setdiff(restaurant_info$HSISID, inspection$HSISID) %>% length()
 
 
-# Merge. 
+# Merge inspections and violations. 
 dat <- merge(inspection, violation, by.x = c("HSISID", "Date"), 
-             by.y = c("HSISID", "InspectDate"), all = TRUE)  # full outer join
+             by.y = c("HSISID", "InspectDate"), all.x = TRUE)  # left join
 # Examine further the mis-matches: those that are in inspection, not in restaurant_info. 
-dat[!(HSISID %in% restaurant_info$HSISID), ] %>% View
-
+dat[!(HSISID %in% restaurant_info$HSISID), ]
 # We note that in `violation`, there are no ViolationCode's that are NA. So in 
 # the merged dataset, if the ViolationCode is NA, it is because there was no 
 # matching violation, so we set the value of the ViolationCode to "none", i.e., 
@@ -43,5 +42,7 @@ dat[!(HSISID %in% restaurant_info$HSISID), ] %>% View
 violation[is.na(ViolationCode)]  # empty
 violation[ , unique(ViolationCode)]  # show all codes 
 dat[is.na(ViolationCode) , ViolationCode := "none"]
+
+# Merge insections and violations with restaurant info. 
 dat <- merge(dat, restaurant_info, by = "HSISID")
 
