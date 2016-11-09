@@ -3,14 +3,71 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When
+you execute code within the notebook, the results appear beneath the
+code.  We begin with a basic initialization of the R environment.
 
 ```{r}
-plot(cars)
+library(data.table)
+library(readr)
+library(magrittr)
+library(lubridate)
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+Read in data. Using `readr::read_csv` seems better on these data
+(`fread` has errors).
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
+```{r}
+inspection <- read_csv("raleigh/data/Food_Inspections.csv") %>%
+  data.table()
+violation <- read_csv("raleigh/data/Food_Inspection_Violations.csv") %>%
+  data.table()
+restaurant_info <- read_csv("raleigh/data/Restaurants_in_Wake_County.csv") %>%
+  data.table()
+```
+
+We first remove first column which is OBJECTID, but it has some kind of byte order mark
+so removing it by number.
+
+```{r}
+inspection <- subset(inspection, select = -1)
+violation <- subset(violation, select = -1)
+restaurant_info <- subset(restaurant_info, select = -1)
+```
+
+Examine how well the datasets would merge.
+```{r}
+inspection[ , uniqueN(HSISID)]
+violation[ , uniqueN(HSISID)]
+restaurant_info[ , uniqueN(HSISID)]
+setdiff(inspection$HSISID, violation$HSISID)
+setdiff(violation$HSISID, inspection$HSISID)
+setdiff(inspection$HSISID, restaurant_info$HSISID) %>% length()  # > 1,000 mis-matches
+setdiff(restaurant_info$HSISID, inspection$HSISID) %>% length()
+```
+
+Merge inspections and violations.
+```{r}
+dat <- merge(inspection, violation, by.x = c("HSISID", "Date"),
+             by.y = c("HSISID", "InspectDate"), all.x = TRUE)  # left join
+```
+
+Examine further the mis-matches: those that are in inspection, not in restaurant_info.
+```{r}
+dat[!(HSISID %in% restaurant_info$HSISID), ]
+```
+
+We note that in `violation`, there are no ViolationCode's that are NA. So in
+the merged dataset, if the ViolationCode is NA, it is because there was no
+matching violation, so we set the value of the ViolationCode to "none", i.e.,
+there was an inspection with no violation.
+```{r}
+violation[is.na(ViolationCode)]  # empty
+violation[ , unique(ViolationCode)]  # show all codes
+dat[is.na(ViolationCode) , ViolationCode := "none"]
+```
+
+Merge insections and violations with restaurant info.
+```{r}
+dat <- merge(dat, restaurant_info, by = "HSISID")
+```
