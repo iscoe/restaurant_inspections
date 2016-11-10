@@ -1,6 +1,8 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document: default
+  html_notebook: default
 ---
 
 
@@ -141,7 +143,7 @@ dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 dat <- subset(dat, select = c("num_critical_binary", "num_critical_previous_binary", 
                               "zip", "City"))
-dat <- dat[complete.cases(dat)]
+dat <- dat[complete.cases(dat)]  # make complete ONLY for quick modelling
 fit <- glm(num_critical_binary ~ num_critical_previous_binary + zip + City, 
            data = dat, family = "binomial")
 summary(fit)
@@ -150,6 +152,12 @@ pred <- prediction(fitted_values, dat$num_critical_binary)
 plot(performance(pred, "tpr", "fpr"), main="ROC")
 ```
 
+We should actually be at least this accurate. Though note this is on a 
+complete dataset (no NA's). Realistically, we need to impute $t = 1$ values. 
+
+```{r previousAgree}
+dat[ , mean(num_critical_binary == num_critical_previous_binary)]
+```
 
 ## Some questions
 
