@@ -82,7 +82,7 @@ dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>%
 
 ## Are inspections worse for first inspections or newer restaurants? 
 
-```{r}
+```{r, results = 'hide'}
 dat[ , num_inspect := 1:.N, by = HSISID]
 dat[ , .(mean_num_critical = mean(num_critical)), by = num_inspect] %>% 
   ggplot(aes(num_inspect, mean_num_critical)) +
@@ -92,7 +92,7 @@ dat[ , .(mean_num_critical = mean(num_critical)), by = num_inspect] %>%
 
 Let's look at how long restaurants are open and see if that is associated. 
 
-```{r}
+```{r, results = 'hide'}
 dat[ , years_from_opening := as.numeric(difftime(Date, RestaurantOpenDate, 
                                                  units = "days")) / 365]
 dat[ , .(mean_num_critical = mean(num_critical)), 
@@ -104,7 +104,9 @@ dat[ , .(mean_num_critical = mean(num_critical)),
 
 ## Do restaurants get worse inspections if they haven't been inspected in a while? 
 
-```{r}
+TODO (Alex): change to days since last inspection; currently does days since first inspection. 
+
+```{r, results = 'hide'}
 dat <- dat[order(HSISID, Date)]
 dat[ , days_since_first_inspection := as.numeric(difftime(Date, Date[1], units = "days")), 
      by = HSISID] 
@@ -113,7 +115,7 @@ dat[ , .(mean_num_critical = mean(num_critical)),
   ggplot(aes(days_since_first_inspection, mean_num_critical)) + 
   geom_point() + 
   geom_line() + 
-  labs(title = "Mean Number of Critical Violations by Days Since Last Inspection
+  labs(title = "Mean Number of Critical Violations by Days Since First Inspection
 (Days are binned by rounding to nearest 10 days)")
 ```
 
@@ -121,7 +123,7 @@ dat[ , .(mean_num_critical = mean(num_critical)),
 
 Let us first compute the previous `num_critical` value, i.e at time $t-1$. 
 
-```{r}
+```{r, results = 'hide'}
 dat <- dat[order(HSISID, Date)]
 dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISID]
 ```
@@ -129,20 +131,29 @@ dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISI
 Now we can have an auto-regressive model on previous value. This is also 
 known as an AR[1] model. 
 
-```{r}
+```{r, results = 'hide'}
 dat[ , zip := substr(PostalCode, 1, 5)]
+```
+
+```{r}
 fit <- glm(num_critical ~ num_critical_previous + zip + City, 
            data = dat, family = "poisson")
 summary(fit)
 ```
 
+
+
 Try a binomial model, but based on histogram above, it doesn't appear that 
 a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
 
-```{r logisticModel}
+```{r createBinaryVariables, results = "hide"}
 dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
+```
+
+
+```{r logisticModel}
 dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
                                     "years_from_opening", "num_inspect",
                                     "zip", "City"))
@@ -161,7 +172,7 @@ We should actually be at least this accurate. Though note this is on a
 complete dataset (no NA's). Realistically, we need to impute $t = 1$ values. 
 
 ```{r previousAgree}
-dat[ , mean(num_critical_binary == num_critical_previous_binary)]
+dat[ , mean(num_critical_binary == num_critical_previous_binary, na.rm = TRUE)]
 ```
 
 ## Some questions
