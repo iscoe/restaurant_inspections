@@ -140,13 +140,15 @@ Try a binomial model, but based on histogram above, it doesn't appear that
 a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
 
-```{r}
+```{r logisticModel}
 dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
+                                    "years_from_opening", "num_inspect",
                                     "zip", "City"))
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(num_critical_binary ~ num_critical_previous + zip + City, 
+fit <- glm(num_critical_binary ~ num_critical_previous + years_from_opening + 
+             num_inspect + zip + City, 
            data = dat_model, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, type = "response")
