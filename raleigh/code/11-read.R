@@ -74,5 +74,11 @@ dat <- merge(dat, restaurant_info, by = "HSISID")  # perform merge (inner join)
 # Remove scores of zero. 
 dat <- subset(dat, Score != 0)
 
+# Normalize the city strings. 
+dat[ , City := tolower(City)]
+dat[City == "morrisvile", City := "morrisville"]
+dat[City == "holly spring", City := "holly springs"]
+dat[City == "fuquay varina", City := "fuquay-varina"]
+
 # Write out the data. 
 write_csv(dat, path = "raleigh/data/merged.csv")

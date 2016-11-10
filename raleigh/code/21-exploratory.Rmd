@@ -1,8 +1,8 @@
 ---
 title: "R Notebook"
 output:
-  html_document: default
-  html_notebook: default
+html_document: default
+html_notebook: default
 ---
 
 
@@ -28,7 +28,7 @@ not necessarily bias, because it could be that inspectors work in better vs.
 worse areas. 
 
 ```{r}
-dat[ , .(mean_critical = mean(num_critical), 
+dat[ , .(mean_critical = mean(num_critical), .N,
          sd_critical = sd(num_critical)), by = InspectedBy][order(-mean_critical)]
 ```
 
@@ -43,9 +43,11 @@ dat[ , mean(num_critical >= 1)]
 
 ```{r}
 dat[ , summary(num_critical)]
-ggplot(dat, aes(num_critical)) + geom_histogram(binwidth = 1) + 
+ggplot(dat, aes(num_critical)) + geom_histogram(binwidth = 1, color = "black", 
+                                                fill = "lightblue") + 
   labs(title = "Histogram of Number of Critical Violations") 
-ggplot(dat, aes(num_non_critical)) + geom_histogram(binwidth = 1) + 
+ggplot(dat, aes(num_non_critical)) + geom_histogram(binwidth = 1, color = "black", 
+                                                    fill = "lightblue") + 
   labs(title = "Histogram of Number of NON-Critical Violations") 
 ggplot(dat, aes(num_critical, Score)) + geom_point() + 
   labs(title = "Score vs. Number of Critical Violations")
@@ -74,7 +76,7 @@ per restaurant.
 ```{r}
 dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>% 
   ggplot(aes(num_inspections)) + geom_histogram(binwidth = 1, color = "black", 
-                                            fill = "lightblue") + 
+                                                fill = "lightblue") + 
   labs(title = "Number of Observations (Inspections) per Restaurant")
 ```
 
@@ -95,7 +97,7 @@ dat[ , years_from_opening := as.numeric(difftime(Date, RestaurantOpenDate,
                                                  units = "days")) / 365]
 dat[ , .(mean_num_critical = mean(num_critical)), 
      by = .(years_from_opening = round(years_from_opening))] %>% 
-ggplot(aes(years_from_opening, mean_num_critical)) +
+  ggplot(aes(years_from_opening, mean_num_critical)) +
   geom_point() + 
   labs(title = "Average Number of Critical Violations By Year From Opening")
 ```
@@ -141,15 +143,16 @@ to look at accuracy at least.
 ```{r}
 dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
-dat <- subset(dat, select = c("num_critical_binary", "num_critical_previous_binary", 
-                              "zip", "City"))
-dat <- dat[complete.cases(dat)]  # make complete ONLY for quick modelling
-fit <- glm(num_critical_binary ~ num_critical_previous_binary + zip + City, 
-           data = dat, family = "binomial")
+dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
+                                    "zip", "City"))
+dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+fit <- glm(num_critical_binary ~ num_critical_previous + zip + City, 
+           data = dat_model, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, type = "response")
-pred <- prediction(fitted_values, dat$num_critical_binary)
+pred <- prediction(fitted_values, dat_model$num_critical_binary)
 plot(performance(pred, "tpr", "fpr"), main="ROC")
+performance(pred, measure = "auc")@y.values  # AUC
 ```
 
 We should actually be at least this accurate. Though note this is on a 
