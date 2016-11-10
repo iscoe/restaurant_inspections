@@ -1,0 +1,158 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r loadLibraries}
+library(data.table) 
+library(readr)
+library(magrittr)
+library(lubridate)
+library(ggplot2)
+library(plyr)
+library(ROCR)
+```
+
+```{r readData}
+dat <- read_csv("../data/merged.csv") %>% data.table()
+```
+
+
+## Examine Inspect Variability 
+
+On quick examination, inspector variability appears large. Note that this is 
+not necessarily bias, because it could be that inspectors work in better vs. 
+worse areas. 
+
+```{r}
+dat[ , .(mean_critical = mean(num_critical), 
+         sd_critical = sd(num_critical)), by = InspectedBy][order(-mean_critical)]
+```
+
+## Examine counts of critical vs. non-critical violations. 
+
+How often does an inspection result in a at least one critical violation? 
+
+```{r}
+dat[ , mean(num_critical == 0)]
+dat[ , mean(num_critical >= 1)]
+```
+
+```{r}
+dat[ , summary(num_critical)]
+ggplot(dat, aes(num_critical)) + geom_histogram(binwidth = 1) + 
+  labs(title = "Histogram of Number of Critical Violations") 
+ggplot(dat, aes(num_non_critical)) + geom_histogram(binwidth = 1) + 
+  labs(title = "Histogram of Number of NON-Critical Violations") 
+ggplot(dat, aes(num_critical, Score)) + geom_point() + 
+  labs(title = "Score vs. Number of Critical Violations")
+ggplot(dat, aes(num_critical + num_non_critical, Score)) + geom_point() +
+  labs(title = "Score vs. Number of All (Critical+Non-Critical) Violations")
+```
+
+## Violations by Facility Type 
+
+```{r}
+ggplot(dat, aes(FacilityType, num_critical)) + 
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  labs(title = "Critical Violations by Facility Type")
+ggplot(dat, aes(FacilityType, Score)) + 
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  labs(title = "Food Inspection Score by Facility Type")
+```
+
+## Counts of inspections per restaurant
+
+If we want to do time-series, we need to make sure we have enough observations
+per restaurant. 
+
+```{r}
+dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>% 
+  ggplot(aes(num_inspections)) + geom_histogram(binwidth = 1, color = "black", 
+                                            fill = "lightblue") + 
+  labs(title = "Number of Observations (Inspections) per Restaurant")
+```
+
+## Are inspections worse for first inspections or newer restaurants? 
+
+```{r}
+dat[ , num_inspect := 1:.N, by = HSISID]
+dat[ , .(mean_num_critical = mean(num_critical)), by = num_inspect] %>% 
+  ggplot(aes(num_inspect, mean_num_critical)) +
+  geom_point() + 
+  labs(title = "Average Number of Critical Violations By Inspection Visit Number")
+```
+
+Let's look at how long restaurants are open and see if that is associated. 
+
+```{r}
+dat[ , years_from_opening := as.numeric(difftime(Date, RestaurantOpenDate, 
+                                                 units = "days")) / 365]
+dat[ , .(mean_num_critical = mean(num_critical)), 
+     by = .(years_from_opening = round(years_from_opening))] %>% 
+ggplot(aes(years_from_opening, mean_num_critical)) +
+  geom_point() + 
+  labs(title = "Average Number of Critical Violations By Year From Opening")
+```
+
+## Do restaurants get worse inspections if they haven't been inspected in a while? 
+
+```{r}
+dat <- dat[order(HSISID, Date)]
+dat[ , days_since_first_inspection := as.numeric(difftime(Date, Date[1], units = "days")), 
+     by = HSISID] 
+dat[ , .(mean_num_critical = mean(num_critical)), 
+     by = .(days_since_first_inspection = round_any(days_since_first_inspection, 10))] %>% 
+  ggplot(aes(days_since_first_inspection, mean_num_critical)) + 
+  geom_point() + 
+  geom_line() + 
+  labs(title = "Mean Number of Critical Violations by Days Since Last Inspection
+(Days are binned by rounding to nearest 10 days)")
+```
+
+## Quick modeling 
+
+Let us first compute the previous `num_critical` value, i.e at time $t-1$. 
+
+```{r}
+dat <- dat[order(HSISID, Date)]
+dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISID]
+```
+
+Now we can have an auto-regressive model on previous value. This is also 
+known as an AR[1] model. 
+
+```{r}
+dat[ , zip := substr(PostalCode, 1, 5)]
+fit <- glm(num_critical ~ num_critical_previous + zip + City, 
+           data = dat, family = "poisson")
+summary(fit)
+```
+
+Try a binomial model, but based on histogram above, it doesn't appear that 
+a cut-off at 1 critical violation is necessarily the best idea. But it is easier
+to look at accuracy at least. 
+
+```{r}
+dat[ , num_critical_binary := num_critical >= 1]
+dat[ , num_critical_previous_binary := num_critical_previous >= 1]
+dat <- subset(dat, select = c("num_critical_binary", "num_critical_previous_binary", 
+                              "zip", "City"))
+dat <- dat[complete.cases(dat)]
+fit <- glm(num_critical_binary ~ num_critical_previous_binary + zip + City, 
+           data = dat, family = "binomial")
+summary(fit)
+fitted_values <- predict(fit, type = "response")
+pred <- prediction(fitted_values, dat$num_critical_binary)
+plot(performance(pred, "tpr", "fpr"), main="ROC")
+```
+
+
+## Some questions
+
+- Do we want to include all facilities, or just restaurants? 
+- Is it ok to use previous observations? 
+- Should we threshold? If so, where is best place to threshold? 
