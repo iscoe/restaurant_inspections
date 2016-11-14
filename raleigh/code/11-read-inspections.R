@@ -1,4 +1,4 @@
-# Read in and light munging on the Raleigh data. 
+# Read in and light munging on the Raleigh inspection data. 
 
 library(data.table) 
 library(readr)
