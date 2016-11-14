@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Exploratory Analysis on Raleigh Data"
 output:
 html_document: default
 html_notebook: default
@@ -14,6 +14,7 @@ library(lubridate)
 library(ggplot2)
 library(plyr)
 library(ROCR)
+library(knitr)
 ```
 
 ```{r readData}
@@ -29,7 +30,8 @@ worse areas.
 
 ```{r}
 dat[ , .(mean_critical = mean(num_critical), .N,
-         sd_critical = sd(num_critical)), by = InspectedBy][order(-mean_critical)]
+         sd_critical = sd(num_critical)), by = InspectedBy][order(-mean_critical)] %>% 
+  kable()
 ```
 
 ## Examine counts of critical vs. non-critical violations. 
@@ -119,6 +121,22 @@ dat[ , .(mean_num_critical = mean(num_critical)),
 (Days are binned by rounding to nearest 10 days)")
 ```
 
+## Census data 
+
+```{r cor, echo = FALSE}
+income_cols <- c("Median_family_income_dollars", 
+                 "Median_household_income_dollars", 
+                 "Per_capita_income_dollars", 
+                 "Percent_Families_Below_Poverty_Line", 
+                 "Percent_Food_Stamp/SNAP_benefits_in_the_past_12_months", 
+                 "Percent_Supplemental_Security_Income")
+dat_income <- dat[ , lapply(.SD, unique), by = zip, .SDcols = income_cols]
+dat_income <- dat_income[ , !"zip", with = FALSE]
+kable(cor(dat_income))
+```
+
+
+
 ## Quick modeling 
 
 Let us first compute the previous `num_critical` value, i.e at time $t-1$. 
@@ -132,7 +150,7 @@ Now we can have an auto-regressive model on previous value. This is also
 known as an AR[1] model. 
 
 ```{r}
-fit <- glm(num_critical ~ num_critical_previous + zip + City, 
+fit <- glm(num_critical ~ num_critical_previous, 
            data = dat, family = "poisson")
 summary(fit)
 ```
@@ -151,11 +169,14 @@ dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 
 ```{r logisticModel}
 dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
-                                    "years_from_opening", "num_inspect",
-                                    "zip", "City"))
+                                    "years_from_opening", "num_inspect", "zip",
+                                    "Median_household_income_dollars",
+                                    "Percent_Families_Below_Poverty_Line" 
+))
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
 fit <- glm(num_critical_binary ~ num_critical_previous + years_from_opening + 
-             num_inspect + zip + City, 
+             num_inspect + zip + Median_household_income_dollars + 
+             Percent_Families_Below_Poverty_Line, 
            data = dat_model, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, type = "response")

@@ -77,5 +77,5 @@ cleaned_income_work[ , (numeric_cols) := lapply(.SD, as.numeric), .SDcols = nume
 cor(subset(cleaned_income_work, select = numeric_cols))
 
 # Write out data. 
-write_csv(cleaned_income_work, path = "raleigh/data/census/income_work.csv")
+write_csv(cleaned_income_work, path = "raleigh/data/census/census.csv")
 
