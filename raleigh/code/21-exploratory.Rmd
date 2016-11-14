@@ -131,10 +131,6 @@ dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISI
 Now we can have an auto-regressive model on previous value. This is also 
 known as an AR[1] model. 
 
-```{r, results = 'hide'}
-dat[ , zip := substr(PostalCode, 1, 5)]
-```
-
 ```{r}
 fit <- glm(num_critical ~ num_critical_previous + zip + City, 
            data = dat, family = "poisson")

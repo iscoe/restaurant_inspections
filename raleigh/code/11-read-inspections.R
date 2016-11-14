@@ -80,5 +80,8 @@ dat[City == "morrisvile", City := "morrisville"]
 dat[City == "holly spring", City := "holly springs"]
 dat[City == "fuquay varina", City := "fuquay-varina"]
 
+# Create a 5-digit zip code. 
+dat[ , zip := substr(PostalCode, 1, 5)]
+
 # Write out the data. 
-write_csv(dat, path = "raleigh/data/merged.csv")
+write_csv(dat, path = "raleigh/data/inspections.csv")
