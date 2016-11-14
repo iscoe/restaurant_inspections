@@ -25,7 +25,7 @@ with open('categories.json') as data_file:
     for i in range(len(data)):
         parentDict[ parents[i] ].append( str(data[i]['alias']) )
 
-    foodCategories = [ catresult for cat in ("restaurants", "food", "bars", "coffeeshops") for catresult in getSelfAndChildren(cat)]
+    foodCategories = [ catresult for cat in ("restaurants", "food", "bars", "coffeeshops", "catering") for catresult in getSelfAndChildren(cat)]
 
     with open("foodCategories.csv", 'w') as foodcsv:
             writer = csv.writer(foodcsv, delimiter=",")
