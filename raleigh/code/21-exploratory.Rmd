@@ -197,3 +197,4 @@ dat[ , mean(num_critical_binary == num_critical_previous_binary, na.rm = TRUE)]
 - Do we want to include all facilities, or just restaurants? 
 - Is it ok to use previous observations? 
 - Should we threshold? If so, where is best place to threshold? 
+- Are there violation codes that are predictive of whether the inspections will go poorly the next time?

@@ -6,10 +6,16 @@ library(magrittr)
 library(stringr)
 library(lubridate)
 
-# Read in enforcement action data. 
+# Read in inspections, enforcement action, establishment geocoded data.  
+inspection <- fread("denver/data/Inspections.csv")
 enforce_action <- fread("denver/data/DenverGOV_EnforcementAction.csv")
 establish_geo <- read_excel("denver/data/DenverGOV_Establishments_Geocoded.xls") %>% 
   data.table()
+
+# Light munging on inspections. 
+new_cols <- gsub(" ", "_", names(inspection)) %>% tolower()
+setnames(inspection, new_cols)
+inspection <- unique(inspection)  # remove duplicate rows
 
 # Light munging on Enforcement Action. 
 enforce_action[ , c("V11", "Row Number") := NULL]
