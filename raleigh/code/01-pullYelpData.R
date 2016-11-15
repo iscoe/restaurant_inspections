@@ -33,7 +33,10 @@ features = c("name",
 "price",
 "phone")
 
-for(i in 1:nrow(restaurant_names)){
+num_restaurants <- nrow(restaurant_names)
+
+for(i in 1:num_restaurants){
+  print(paste("Processing", i, "of", num_restaurants))
   row <- restaurant_names[i,]
   #Tricky -doesn't handle spaces but we need to ensure we get the actual restaurant.  Using first word.
   #You can't merely delete the spaces because if there's a number after the name (indicating one of multiple
@@ -49,7 +52,7 @@ for(i in 1:nrow(restaurant_names)){
   
   location_data <- GET(paste0(yelpUrl, params),
                        add_headers(Authorization = paste0("Bearer ",accessToken)))
-  location_content <- content(location_data, type = "text");
+  location_content <- content(location_data, type = "text", encoding = "UTF-8");
   jsondat <- fromJSON(location_content);
   if("businesses" %in% names(jsondat) && length(jsondat$businesses) > 0){
       bus_df <- flatten(data.frame(jsondat$businesses));
@@ -59,7 +62,7 @@ for(i in 1:nrow(restaurant_names)){
           dplyr::select(one_of(availableFeatures));
       
       # Extract categories as comma-separated string (will be split later).
-      df$categories <- unlist(lapply(categories, 
+      df$categories <- unlist(lapply(bus_df$categories, 
                                      function(x) paste0(x$alias, collapse=",")))
       
       yelpList[[i]] <- df;
@@ -67,4 +70,7 @@ for(i in 1:nrow(restaurant_names)){
 }
 
 yelpDF <- rbindlist(yelpList, use.names=TRUE, fill=TRUE, idcol=NULL)
-write_csv(yelpDF[!duplicated(yelpDF),], "yelpData2.csv")
+yelpDF <- unique(yelpDF)  # delete duplicates
+
+# Write out data. 
+write_csv(yelpDF, "yelpData2.csv")
