@@ -39,39 +39,54 @@ restaurantId <- sort(unique(inspection[,`FACILITY CODE`]))
 for (id in restaurantId) {
     inspection_thisRestaurant <- inspection[`FACILITY CODE` == id]
     inspection_thisRestaurant <- inspection_thisRestaurant[order(as.Date(inspection_thisRestaurant$`DATE OF INSPECTION`, format="%m/%d/%Y")),]
-    uniqueDates_thisRestaurant = unique(inspection_thisRestaurant[,`DATE OF INSPECTION`])
+    uniqueDates = unique(inspection_thisRestaurant[,`DATE OF INSPECTION`])
     
-    nPastCritical_thisRestaurant <- 0
-    nPastNonCritical_thisRestaurant <- 0
-    pastDate_thisRestaurant <- NULL
-    for (date in uniqueDates_thisRestaurant) {
-        inspection_thisRestaurantAndDate <- inspection_thisRestaurant[`DATE OF INSPECTION`== date]
-        nCritical_thisRestaurantAndDate <- sum(inspection_thisRestaurantAndDate[,`CRITICAL VIOLATION`] == "Critical Violation")
-        nPastCritical_thisRestaurant = nPastCritical_thisRestaurant + nCritical_thisRestaurantAndDate
-        nNonCritical_thisRestaurantAndDate <- sum(inspection_thisRestaurantAndDate[,`CRITICAL VIOLATION`] == "Not Critical Violation")
-        nPastNonCritical_thisRestaurant = nPastNonCritical_thisRestaurant + nNonCritical_thisRestaurantAndDate
+    nPastCritical <- 0
+    nPastNonCritical <- 0
+    previousInspectionDate <- NULL
+    for (date in uniqueDates) {
+        inspection_thisDate <- inspection_thisRestaurant[`DATE OF INSPECTION`== date]
+        nCritical <- sum(inspection_thisDate[,`CRITICAL VIOLATION`] == "Critical Violation")
+        nNonCritical <- sum(inspection_thisDate[,`CRITICAL VIOLATION`] == "Not Critical Violation")
             
-        daysRemainingOnPermit_thisRestaurant <- as.Date(unique(inspection_thisRestaurantAndDate[,`PERMIT EXPIRATION DATE`]),format="%m/%d/%Y") - as.Date(date,format="%m/%d/%Y")
-        if (is.null(pastDate_thisRestaurant) == TRUE) {
-            pastDate_thisRestaurant <- date
+        daysRemainingOnPermit <- as.Date(unique(inspection_thisDate[,`PERMIT EXPIRATION DATE`]),format="%m/%d/%Y") - as.Date(date,format="%m/%d/%Y")
+        if (is.null(previousInspectionDate) == TRUE) {
+            previousInspectionDate <- date
+            nPastCritical <- NA
+            nPastNonCritical <- NA
         }
-        daysSinceLastInspection_thisRestaurant <- as.Date(date,"%m/%d/%Y") - as.Date(pastDate_thisRestaurant,"%m/%d/%Y")
         
-
-    inspection2_thisRestaurant <- data.table('FACILITY CODE' = id,
+        daysSinceLastInspection <- as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y")
+        
+        testDate = "01/01/2016"
+        if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
+            isTest <- TRUE
+        } else {
+            isTest <- FALSE
+        }
+        
+        inspection2_thisRestaurant <- data.table('FACILITY CODE' = id,
                                              'INSPECTION DATE' = date,
-                                             'NUM CRITICAL VIOLATIONS' = nCritical_thisRestaurantAndDate,
-                                             'NUM NON-CRITICAL VIOLATIONS' = nNonCritical_thisRestaurantAndDate,
-                                             'DAYS UNTIL PERMIT EXPIRES' = daysRemainingOnPermit_thisRestaurant,
-                                             'DAYS SINCE LAST INSPECTION' = daysSinceLastInspection_thisRestaurant)
+                                             'NUM CRITICAL VIOLATIONS (THIS INSPECTION)' = nCritical,
+                                             'NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION' = nPastCritical,
+                                             'NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION' = nPastNonCritical,
+                                             'DAYS UNTIL PERMIT EXPIRES' = daysRemainingOnPermit,
+                                             'DAYS SINCE LAST INSPECTION' = daysSinceLastInspection,
+                                             'USE FOR TESTING' = isTest)
         
     if (is.null(inspection2)) {
         inspection2 <- inspection2_thisRestaurant
     } else {
         inspection2 <- rbind(inspection2,inspection2_thisRestaurant)
     }
+        nPastCritical <- nCritical
+        nPastNonCritical <- nNonCritical
+        
     }
 }
+
+saveRDS(inspection2,'../data/inspection2.Rds')
+
 
 # 
 # ##==============================================================================
