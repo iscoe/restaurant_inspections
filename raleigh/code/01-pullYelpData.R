@@ -58,9 +58,13 @@ for(i in 1:nrow(restaurant_names)){
       df <- bus_df %>%
           dplyr::select(one_of(availableFeatures));
       
+      # Extract categories as comma-separated string (will be split later).
+      df$categories <- unlist(lapply(categories, 
+                                     function(x) paste0(x$alias, collapse=",")))
+      
       yelpList[[i]] <- df;
   }
 }
 
 yelpDF <- rbindlist(yelpList, use.names=TRUE, fill=TRUE, idcol=NULL)
-write.csv(yelpDF[!duplicated(yelpDF),], file = "yelpData.csv")
+write_csv(yelpDF[!duplicated(yelpDF),], "yelpData2.csv")
