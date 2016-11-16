@@ -4,6 +4,8 @@ library(data.table)
 library(readr)
 library(magrittr)
 library(lubridate)
+library(sp)
+library(geosphere)
 
  
 #  Read in data. ----------------------------------------------------------
@@ -82,6 +84,46 @@ dat[City == "fuquay varina", City := "fuquay-varina"]
 
 # Create a 5-digit zip code. 
 dat[ , zip := substr(PostalCode, 1, 5)]
+
+
+# Compute previous violations.  -------------------------------------------
+dat <- dat[order(HSISID, Date)]
+dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISID]
+
+# Compute previous inspections info. --------------------------------------
+dat <- dat[order(HSISID, Date)]
+dat[ , previous_inspection_date := shift(Date, 1, type = "lag"), by = HSISID]
+dat[ , days_since_previous_inspection := 
+           as.numeric(difftime(Date, previous_inspection_date, units = "days"))]
+dat[ , days_from_open_date := 
+       as.numeric(difftime(Date, RestaurantOpenDate, units = "days"))]
+
+
+# Compute nearest neighbors' critical violations. ------------------------------
+dat <- subset(dat, !(X == 0 | Y == 0))  # ensure we have lat/long
+dat[ , c("avg_neighbor_num_critical", "avg_neighbor_num_non_critical") := -1]
+all_location <- as.matrix(dat[ , list(X, Y)])
+dat_loc <- subset(dat, select = c("HSISID", "Date", 
+                                  "num_critical", "num_non_critical", 
+                                  "X", "Y"))
+n <- nrow(dat)
+for (i in 1:n){
+  print(paste("Proccesing", i, "of", n))
+  curr_record <- dat[i,]
+  curr_loc <- c(curr_record$X, curr_record$Y)
+  curr_date <- curr_record$Date
+  curr_id <- curr_record$HSISID
+  dat_loc$dist <- distGeo(curr_loc, as.matrix(dat_loc[ , list(X, Y)]))
+  res <- dat_loc[Date < curr_date & HSISID != curr_id][order(dist)][ 
+    , .(mean(num_critical), mean(num_non_critical)), by = HSISID][1:5, ][ ,
+      .(neigh_crit = mean(V1), neigh_non_crit = mean(V2), 
+        top_match = HSISID[1], second_match = HSISID[2])]
+  dat[HSISID == curr_id & Date == curr_date, 
+      `:=`(avg_neighbor_num_critical = res$neigh_crit, 
+           avg_neighbor_num_non_critical = res$neigh_non_crit, 
+           top_match = res$top_match, 
+           second_match = res$second_match)]
+}
 
 # Write out the data. 
 write_csv(dat, path = "raleigh/data/inspections.csv")

@@ -19,6 +19,7 @@ library(knitr)
 
 ```{r readData}
 dat <- read_csv("../data/merged.csv") %>% data.table()
+dat[ , zip := as.character(zip)]
 ```
 
 
@@ -139,13 +140,6 @@ kable(cor(dat_income))
 
 ## Quick modeling 
 
-Let us first compute the previous `num_critical` value, i.e at time $t-1$. 
-
-```{r, results = 'hide'}
-dat <- dat[order(HSISID, Date)]
-dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISID]
-```
-
 Now we can have an auto-regressive model on previous value. This is also 
 known as an AR[1] model. 
 
@@ -171,18 +165,51 @@ dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
                                     "years_from_opening", "num_inspect", "zip",
                                     "Median_household_income_dollars",
-                                    "Percent_Families_Below_Poverty_Line" 
+                                    "Percent_Families_Below_Poverty_Line", 
+                                    "avg_neighbor_num_critical"
 ))
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
 fit <- glm(num_critical_binary ~ num_critical_previous + years_from_opening + 
              num_inspect + zip + Median_household_income_dollars + 
-             Percent_Families_Below_Poverty_Line, 
+             Percent_Families_Below_Poverty_Line + avg_neighbor_num_critical, 
            data = dat_model, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, type = "response")
+```
+
+Assess fit of logistic model. 
+
+```{r logisticFit}
 pred <- prediction(fitted_values, dat_model$num_critical_binary)
+
+# ROC.
 plot(performance(pred, "tpr", "fpr"), main="ROC")
-performance(pred, measure = "auc")@y.values  # AUC
+abline(0, 1, lty=2)
+
+## sensitivity / specificity
+plot(performance(pred, "sens", "spec"), main="sensitivity vs specificity")
+abline(1, -1, lty=2)
+
+## phi
+plot(performance(pred, "phi"), main="phi scores")
+
+## Fancy ROC curve:
+op <- par(bg="lightgray", mai=c(1.2,1.5,1,1))
+plot(performance(pred,"tpr","fpr"), 
+     main="ROC Curve", colorize=TRUE, lwd=10)
+par(op)
+
+## Effect of using a cost function on cutoffs
+plot(performance(pred, "cost", cost.fp = 1, cost.fn = 1), 
+     main="Even costs (FP=1 TN=1)")
+plot(performance(pred, "cost", cost.fp = 1, cost.fn = 4), 
+     main="Higher cost for FN (FP=1 TN=4)")
+
+## Accuracy
+plot(performance(pred, measure = "acc"))
+
+# AUC.
+performance(pred, measure = "auc")@y.values[[1]]  # AUC
 ```
 
 We should actually be at least this accurate. Though note this is on a 
@@ -198,3 +225,7 @@ dat[ , mean(num_critical_binary == num_critical_previous_binary, na.rm = TRUE)]
 - Is it ok to use previous observations? 
 - Should we threshold? If so, where is best place to threshold? 
 - Are there violation codes that are predictive of whether the inspections will go poorly the next time?
+- Should we use AUC as main metric? How to do train/test split? I'm partial to using say last 1 year 
+or 6 months of data as test set. 
+- What was Chicago's AUC _without_ inspector id? 
+
