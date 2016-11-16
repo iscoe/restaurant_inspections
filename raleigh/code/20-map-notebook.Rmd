@@ -1,0 +1,20 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+require(ggplot2)
+require(ggmap)
+require(maps)
+
+mapdat <- subset(dat, Geocode Status != "U")
+bb_coords = c(min(mapdat$X), min(mapdat$Y), max(mapdat$X), max(mapdat$Y))
+wake <- get_map(location = bb_coords, zoom=5)
+
+mapPoints <- ggmap(wake) + geom_point(data=mapdat, 
+                                     aes(x=X, y=Y),
+                                     size=0.8,
+                                     color="red",
+                                     alpha=0.5)
+
+mapPoints
+
