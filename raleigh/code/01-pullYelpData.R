@@ -5,17 +5,20 @@ library(plyr)
 library(readr)
 library(data.table)
 
-writeData <- function(yelpList, categoryList){
+
+writeData <- function(yelpList, yelpCategories, writeColNames){
   yelpDF <- rbindlist(yelpList, use.names=TRUE, fill=TRUE, idcol=NULL)
   yelpDF <- unique(yelpDF)  # delete duplicates
-  write.table(yelpDF, file = "yelpData.csv", append = TRUE, row.names = TRUE, sep = ",")
-  categoryDF <- rbindList(categoryList, use.names=TRUE, fill=TRUE< idcol=NULL)
-  write.table(categoryDF, file = "yelpRestaurantCategories.csv", append = TRUE, row.names = TRUE, sep = ",")
+  write.table(yelpDF, file = "yelpData.csv", append = TRUE, row.names = TRUE, col.names = writeColNames, sep = ",")
+  categoryDF <- rbindlist(yelpCategories, use.names=TRUE, fill=TRUE, idcol=NULL)
+  categoryDF <- unique(categoryDF)
+  write.table(categoryDF, file = "yelpRestaurantCategories.csv", append = TRUE, row.names = TRUE, col.names = writeColNames, sep = ",")
 }
 
 accessToken <- "sDLP7PHbl53ruD4taAbSUl3kezQED4blRTEuSRPvf0w5a7C9nrndLl1R8sl4_FzoFZDQoN_Jhl1YuU-EmIdg_lh9zQZrx-pVpEOXV9tKsWmzIrdVsu9jJ_KPeN0kWHYx"
 yelpUrl <- "https://api.yelp.com/v3/businesses/search?"
 features = c("name",
+             "id",
              "is_closed",
              "rating",
              "review_count",
@@ -33,11 +36,12 @@ restaurant_names <- read_csv("raleigh/data/Restaurants_in_Wake_County.csv") %>%
                 X,
                 Y)
 
-yelpCategories <- read_csv("yelpWork/foodCategories.csv")$CATEGORIES
-numCats <- length(yelpCategories)
+restaurant_categories <- read_csv("yelpWork/foodCategories.csv")$CATEGORIES
+numCats <- length(restaurant_categories)
 
-yelpList <- list();
-categoryList <- list();
+yelpList <- list()
+yelpCategories <- list()
+WriteColNames <- TRUE
 
 num_restaurants <- nrow(restaurant_names)
 
@@ -64,27 +68,27 @@ for(i in 1:num_restaurants){
       availableFeatures <- intersect(features, colnames(bus_df))
       df <- bus_df %>%
           dplyr::select(one_of(availableFeatures));
-      
       # Extract categories as comma-separated string (will be split later).
       df$categories <- unlist(lapply(bus_df$categories, 
                                      function(x) paste0(x$alias, collapse=",")))
-      bus_cats <- bus_df[,c("id","categories")];
-      bus_categoryDF <- setNames(data.frame(matrix(FALSE, ncol = numCats, nrow = length(bus_cats$id))), yelpCategories)
+      bus_cats <- bus_df[,c("id","categories")]
+      bus_categoryDF <- setNames(data.frame(matrix(FALSE, ncol = (numCats + 1), nrow = length(bus_cats$id))), c("bus_id", restaurant_categories))
       row.names(df) <- bus_df$id
       row.names(bus_categoryDF) <- bus_df$id
       for(i in 1:nrow(bus_cats)){
-        id <- bus_cats[i,]$id
-        cats <- intersect(bus_cats[i,]$categories[[1]]$alias, yelpCategories)
+        bus_categoryDF[i,]$bus_id <- id
+        cats <- intersect(bus_cats[i,]$categories[[1]]$alias, restaurant_categories)
         bus_categoryDF[id,cats] <- TRUE
       }
-      yelpCategories[[i]] <- bus_categoryDF;
       yelpList[[i]] <- df;
- 
-  if(i %% 50 == 0){
-    writeData(yelpList, categoryList)
+      yelpCategories[[i]] <- bus_categoryDF;
+  }
+  if(i %% 50){
+    writeData(yelpList, yelpCategories, WriteColNames);
     yelpList <- list();
-    categoryList <- list();
+    yelpCategories <- list();
+    WriteColNames <- FALSE;
   }
 }
 
-writeData(yelpList, categoryList)
+writeData(yelpList, yelpCategories, WriteColNames);
