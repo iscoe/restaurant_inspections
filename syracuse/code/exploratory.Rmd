@@ -121,17 +121,6 @@ hexbinplot(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`~ `NUM CRITICAL VIOLATIONS
 Now we can have an auto-regressive model on previous value. This is also 
 known as an AR[1] model. 
 
-```{r}
-fit <- glm(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)` ~ `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`, 
-           data = dat, family = "poisson")
-summary(fit)
-fitted_values <- predict(fit, type = "response")
-pred <- prediction(fitted_values, dat_model$num_critical_binary)
-plot(performance(pred, "tpr", "fpr"), main="ROC")
-performance(pred, measure = "auc")@y.values  # AUC
-
-```
-
 Try a binomial model, but based on histogram above, it doesn't appear that 
 a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
@@ -142,14 +131,16 @@ dat[ , num_critical_previous_binary := `NUM CRITICAL VIOLATIONS (PREVIOUS INSPEC
 
 dat_model <- subset(dat, select = c("num_critical_binary", 
                                     "NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)"))
+iTrain <- dat[,`USE FOR TESTING`] == FALSE
+iTest <- dat[,`USE FOR TESTING`] == TRUE
 
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
 
-fit <- glm(num_critical_binary ~ `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`,data = dat_model, family = "binomial")
+fit <- glm(num_critical_binary ~ `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`,data = dat_model[iTrain], family = "binomial")
 
 summary(fit)
-fitted_values <- predict(fit, type = "response")
-pred1 <- prediction(fitted_values, dat_model$num_critical_binary)
+fitted_values <- predict(fit, dat_model[iTest], type = "response")
+pred1 <- prediction(fitted_values, dat_model[iTest]$num_critical_binary)
 plot(performance(pred1, "tpr", "fpr"), main="ROC")
 performance(pred1, measure = "auc")@y.values  # AUC
 ```
@@ -162,22 +153,16 @@ dat_model <- subset(dat, select = c("num_critical_binary",
                                     "DAYS UNTIL PERMIT EXPIRES","DAYS SINCE LAST INSPECTION"))
 
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(num_critical_binary ~ `FACILITY TYPE` + `ZIP CODE` + `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `DAYS UNTIL PERMIT EXPIRES` + `DAYS SINCE LAST INSPECTION`,data = dat_model, family = "binomial")
+fit <- glm(num_critical_binary ~ `FACILITY TYPE` + `ZIP CODE` + `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `DAYS UNTIL PERMIT EXPIRES` + `DAYS SINCE LAST INSPECTION`,data = dat_model[iTrain], family = "binomial")
 
 summary(fit)
-fitted_values <- predict(fit, type = "response")
-pred2 <- prediction(fitted_values, dat_model$num_critical_binary)
+fitted_values <- predict(fit, dat_model[iTest], type = "response")
+pred2 <- prediction(fitted_values, dat_model[iTest]$num_critical_binary)
 plot(performance(pred1, "tpr", "fpr"), main="ROC")
-plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE)
+plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,colorize=TRUE)
 performance(pred2, measure = "auc")@y.values  # AUC
 ```
 
-We should actually be at least this accurate. Though note this is on a 
-complete dataset (no NA's). Realistically, we need to impute $t = 1$ values. 
-
-```{r previousAgree}
-dat[ , mean(num_critical_binary == num_critical_previous_binary, na.rm = TRUE)]
-```
 
 ## TODO
 - Incorporate features extracted from additional data sets (liquor licenses, crime, census, complains, weather, yelp reviews)

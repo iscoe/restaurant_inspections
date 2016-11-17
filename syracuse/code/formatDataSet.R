@@ -41,6 +41,8 @@ for (id in restaurantId) {
     facilityName = inspection_thisRestaurant[1,FACILITY]
     facilityZip = inspection_thisRestaurant[1,`FACILITY POSTAL ZIPCODE`]
     facilityType = inspection_thisRestaurant[1,`FOOD SERVICE DESCRIPTION`]
+    lat = inspection_thisRestaurant[1,`LATITUDE`]
+    lon = inspection_thisRestaurant[1,`LONGITUDE`]
     inspectionType = inspection_thisRestaurant[1,`INSPECTION TYPE`]
     uniqueDates = unique(inspection_thisRestaurant[,`DATE OF INSPECTION`])
     
@@ -61,12 +63,12 @@ for (id in restaurantId) {
         
         daysSinceLastInspection <- as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y")
         
-        # testDate = "01/01/2016"
-        # if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
-        #     isTest <- TRUE
-        # } else {
-        #     isTest <- FALSE
-        # }
+        testDate = "01/01/2016"
+        if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
+            isTest <- TRUE
+        } else {
+            isTest <- FALSE
+        }
         
         inspection2_thisRestaurant <- data.table('FACILITY CODE' = id,
                                              'FACILITY NAME' = facilityName,
@@ -79,7 +81,10 @@ for (id in restaurantId) {
                                              'NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)' = nPastCritical,
                                              'NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)' = nPastNonCritical,
                                              'DAYS UNTIL PERMIT EXPIRES' = daysRemainingOnPermit,
-                                             'DAYS SINCE LAST INSPECTION' = daysSinceLastInspection)
+                                             'DAYS SINCE LAST INSPECTION' = daysSinceLastInspection,
+                                             'USE FOR TESTING' = isTest,
+                                             'LATITUDE' = lat,
+                                             'LONGITUDE' = lon)
         
     if (is.null(inspection2)) {
         inspection2 <- inspection2_thisRestaurant
