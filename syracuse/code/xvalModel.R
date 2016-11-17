@@ -5,31 +5,26 @@ library(magrittr)
 library(lubridate)
 
 dat <- readRDS("../data/inspection2.Rds")
-
+dat <- dat[!is.na(`NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION`)]
 
 ##==============================================================================
 ## CREATE MODEL DATA
 ##==============================================================================
 # sort(colnames(dat))
 
-criticalFound <- (dat[,`NUM CRITICAL VIOLATIONS`] > 0)
-dat <- dat[,`NUM CRITICAL VIOLATIONS`:=NULL]
+criticalFound <- (dat[,`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`] > 0)
+iiTrain <- dat[ , which(`USE FOR TESTING`== FALSE)]
+iiTest <- dat[ , which(`USE FOR TESTING`== TRUE)]
+dat <- dat[,`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`:=NULL]
+dat <- dat[,`USE FOR TESTING`:=NULL]
+dat <- dat[,`FACILITY CODE`:=NULL]
+dat <- dat[,`INSPECTION DATE`:=NULL]
 
-mm <- model.matrix(criticalFound ~ . -1, data=xmat[ , -1, with=F])
+mm <- model.matrix(criticalFound ~ . -1, data = dat)
 mm <- as.data.table(mm)
 str(mm)
 colnames(mm)
 
-##==============================================================================
-## CREATE TEST / TRAIN PARTITIONS
-##==============================================================================
-iiTrain <- dat[ , which(`USE FOR TESTING`== FALSE)]
-iiTest <- dat[ , which(`USE FOR TESTING`== TRUE)]
-
-## Check to see if any rows didn't make it through the model.matrix formula
-nrow(dat)
-nrow(xmat)
-nrow(mm)
 
 ##==============================================================================
 ## GLMNET MODEL
@@ -37,16 +32,12 @@ nrow(mm)
 ## http://web.stanford.edu/~hastie/glmnet/glmnet_alpha.html
 ##==============================================================================
 
-# fit ridge regression, alpha = 0, only inspector coefficients penalized
-penalty <- ifelse(grepl("^Inspector", colnames(mm)), 1, 0)
-
 ## Find best lambda based on CV results
 ## Note, The cvfit object includes the top model
-cvfit <- cv.glmnet(x = as.matrix(mm[iiTrain]),
-                   y = xmat[iiTrain,  criticalFound],
+cvfit <- cv.glmnet(x = as.matrix(dat[iiTrain]),
+                   y = criticalFound[iiTrain],
                    family = "binomial", 
                    alpha = 0,
-                   penalty.factor = penalty,
                    type.measure = "deviance")
 
 ## View of results
