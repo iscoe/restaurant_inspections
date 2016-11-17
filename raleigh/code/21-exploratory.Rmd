@@ -15,6 +15,7 @@ suppressMessages(library(ggplot2))
 suppressMessages(library(plyr))
 suppressMessages(library(ROCR))
 suppressMessages(library(knitr))
+suppressMessages(library(caret))
 ```
 
 ```{r readData}
@@ -160,27 +161,42 @@ dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 ```
 
-
-```{r logisticModel}
-dat_model <- subset(dat, select = c("num_critical_binary", "num_critical_previous",
-                                    "years_from_opening", "num_inspect", "zip",
+```{r prepareDataForModel, results = "hide"}
+dat[ , num_critical_binary := factor(num_critical >= 1)]
+yelp_cats <- c("hotdogs", "sandwiches", "pizza", "tradamerican", "burgers", 
+               "mexican", "grocery", "breakfast_brunch", "coffee", "chinese", 
+               "italian", "newamerican", "chicken_wings", "delis", "bars", 
+               "salad", "seafood", "bbq", "bakeries", "sushi")
+dat_model <- subset(dat, select = c("num_critical_binary", "Date",
+                                    "num_critical_previous",
+                                    "days_from_open_date",
                                     "Median_household_income_dollars",
                                     "Percent_Families_Below_Poverty_Line", 
-                                    "avg_neighbor_num_critical"
+                                    "avg_neighbor_num_critical", 
+                                    "rating", "price", yelp_cats  # yelp
 ))
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(num_critical_binary ~ num_critical_previous + years_from_opening + 
-             num_inspect + zip + Median_household_income_dollars + 
-             Percent_Families_Below_Poverty_Line + avg_neighbor_num_critical, 
-           data = dat_model, family = "binomial")
+dat_model[ , price := factor(price, levels = c("$", "$$", "$$$", "$$$$"))]
+
+# Make train/test splits. 
+train <- dat_model[Date < as.POSIXct("2016-01-01")]
+test <- dat_model[Date >= as.POSIXct("2016-01-01")]
+train[ , Date := NULL]
+test[ , Date := NULL]
+```
+
+
+```{r logisticModel}
+# Fit model. 
+fit <- glm(num_critical_binary ~ ., data = train, family = "binomial")
 summary(fit)
-fitted_values <- predict(fit, type = "response")
+fitted_values <- predict(fit, newdata = test, type = "response")
 ```
 
 Assess fit of logistic model. 
 
 ```{r logisticFit}
-pred <- prediction(fitted_values, dat_model$num_critical_binary)
+pred <- prediction(fitted_values, test$num_critical_binary)
 
 # ROC.
 plot(performance(pred, "tpr", "fpr"), main="ROC")
@@ -212,12 +228,12 @@ plot(performance(pred, measure = "acc"))
 performance(pred, measure = "auc")@y.values[[1]]  # AUC
 ```
 
-We should actually be at least this accurate. Though note this is on a 
-complete dataset (no NA's). Realistically, we need to impute $t = 1$ values. 
-
-```{r previousAgree}
-dat[ , mean(num_critical_binary == num_critical_previous_binary, na.rm = TRUE)]
+```{r confusionMatrix}
+confusionMatrix(fitted_values > 0.5, test$num_critical_binary)
 ```
+
+
+
 
 ## Some questions
 
