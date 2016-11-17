@@ -21,7 +21,7 @@ inspections[zip %in% setdiff(inspections$zip, census$zip), .N]
 nrow(inspections)
 
 # Inner join. 
-inspections_census <- merge(census, inspections, by = "zip")
+inspections_census <- merge(inspections, census, by = "zip")
 
 
 # Merge in Yelp data. -----------------------------------------------------
