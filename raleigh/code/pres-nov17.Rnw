@@ -166,6 +166,10 @@ dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>%
 
 
 \begin{frame}{Other Variables in Model / Other Data Sources}
+
+Besides number of previous critical violations and days since opening (extracted from inspections), 
+other variables include: 
+
 \begin{itemize}
 \item Geographical Information
   \begin{itemize}
@@ -183,23 +187,8 @@ dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>%
     \item Restaurant Category (top 20, e.g. Mexican, Sushi, Chinese, Coffee)
   \end{itemize}
 \end{itemize}
-\end{frame}
-
-\begin{frame}
-
-Specifically, what is in the model are these variables:
-
-\begin{itemize}
-  \item Number of critical violations in previous inspection
-  \item Days since first opening date of restaurant
-  \item Average neighbors previous number of critical violations
-  \item Median household income in the encompassing ZIP
-  \item Percent of Families Below Poverty Line 
-  \item Yelp rating, price, categories
-\end{itemize}
 
 What is NOT in model: Inspector information, ZIP code
-
 \end{frame}
 
 
