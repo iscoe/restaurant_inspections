@@ -168,8 +168,8 @@ summary(fit)
 fitted_values <- predict(fit, type = "response")
 pred2 <- prediction(fitted_values, dat_model$num_critical_binary)
 plot(performance(pred1, "tpr", "fpr"), main="ROC")
-plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,colorize = TRUE)
-performance(pred, measure = "auc")@y.values  # AUC
+plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE)
+performance(pred2, measure = "auc")@y.values  # AUC
 ```
 
 We should actually be at least this accurate. Though note this is on a 
