@@ -167,8 +167,8 @@ dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>%
 
 \begin{frame}{Other Variables in Model / Other Data Sources}
 
-Besides number of previous critical violations and days since opening (extracted from inspections), 
-other variables include: 
+Besides number of previous critical violations, days from last inspection, and
+days since opening (extracted from inspections), other variables include: 
 
 \begin{itemize}
 \item Geographical Information
@@ -213,6 +213,7 @@ yelp_cats <- c("hotdogs", "sandwiches", "pizza", "tradamerican", "burgers",
 dat_model <- subset(dat, select = c("num_critical_binary", "Date",
                                     "num_critical_previous",
                                     "days_from_open_date",
+                                    "days_since_previous_inspection",
                                     "Median_household_income_dollars",
                                     "Percent_Families_Below_Poverty_Line", 
                                     "avg_neighbor_num_critical", 
@@ -256,6 +257,7 @@ abline(0, 1, lty=2)
     \item Results for cutoffs of 2, 3, 4, or 5 are similar (AUC 0.73-0.77) - beyond that gets rare
   \end{itemize}
   \item Class imbalance
+  \item Variable selection techniques
   \item To model counts, use a different model and performance measure
   \item How to make use of items that don't match from Yelp, Google Places
   \item Previous values seem quite useful: can me model those better (not just use one previous but all previous)
