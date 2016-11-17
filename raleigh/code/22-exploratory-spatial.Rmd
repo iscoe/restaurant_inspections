@@ -42,7 +42,7 @@ ggmap(map) + geom_point(size = 1,
 
 Here we use the `leaflet` package. This one is interactive. 
 
-```{r leafletMap, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 12, fig.height = 8}
+```{r leafletMap, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 8, fig.height = 6}
 dat_map <- subset(dat, select = c("HSISID", "num_critical", "X", "Y"))
 setnames(dat_map, c("X", "Y"), c("lng", "lat"))
 dat_map <- subset(dat_map, !(lng == 0 | lat == 0))

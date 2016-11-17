@@ -7,18 +7,18 @@ html_notebook: default
 
 
 ```{r loadLibraries}
-library(data.table) 
-library(readr)
-library(magrittr)
-library(lubridate)
-library(ggplot2)
-library(plyr)
-library(ROCR)
-library(knitr)
+suppressMessages(library(data.table))
+suppressMessages(library(readr))
+suppressMessages(library(magrittr))
+suppressMessages(library(lubridate))
+suppressMessages(library(ggplot2))
+suppressMessages(library(plyr))
+suppressMessages(library(ROCR))
+suppressMessages(library(knitr))
 ```
 
 ```{r readData}
-dat <- read_csv("../data/merged.csv") %>% data.table()
+dat <- fread("../data/merged.csv")
 dat[ , zip := as.character(zip)]
 ```
 
