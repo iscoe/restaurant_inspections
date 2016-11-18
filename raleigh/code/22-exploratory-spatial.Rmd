@@ -30,7 +30,7 @@ dat[ , .(N = .N,
 
 Here we use `ggmap`. 
 
-```{r staticMap, fig.width = 10, fig.height = 10}
+```{r staticMap, fig.width = 8, fig.height = 6}
 map <- get_map(location='raleigh', maptype = "terrain",
                source='google',color='color')
 ggmap(map) + geom_point(size = 1,
@@ -39,6 +39,15 @@ ggmap(map) + geom_point(size = 1,
   scale_color_gradient(low="blue", high="red")
 ```
 
+Analyze inspector patterns. 
+
+```{r staticMapInspector, fig.width = 10, fig.height = 10}
+map <- get_map(location='raleigh', maptype = "terrain",
+               source='google',color='color')
+ggmap(map) + geom_point(size = 1,
+                        aes(x=X, y=Y, show_guide = TRUE, colour=InspectedBy), 
+                        data=dat, alpha=.5, na.rm = TRUE)  
+```
 
 Here we use the `leaflet` package. This one is interactive. 
 
