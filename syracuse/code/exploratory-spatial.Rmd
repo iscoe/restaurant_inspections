@@ -1,0 +1,95 @@
+---
+title: "Exploratory Spatial Analysis"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r loadLibraries}
+library(readr)
+library(data.table)
+library(knitr)
+library(ggmap)
+library(leaflet)
+library(RColorBrewer)
+```
+
+```{r readData}
+dat <- read_csv("../data/inspections2.csv") %>% data.table()
+
+id <- dat[,`FACILITY CODE`]
+id = unique(id)
+ind = 0
+lat = c()
+lon = c()
+totalCritical = c()
+totalNonCritical = c()
+for (i in id) {
+    ind = ind+1
+    iThisRestaurant = dat[,`FACILITY CODE` == i]
+    inspectionsThisRestaurant <- dat[iThisRestaurant]
+    lat[ind] = inspectionsThisRestaurant[1,LATITUDE]
+    lon[ind] = inspectionsThisRestaurant[1,LONGITUDE]
+    totalCritical[ind] = sum(inspectionsThisRestaurant[,`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`])
+    totalNonCritical[ind] = sum(inspectionsThisRestaurant[,`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`])
+}
+
+naInds = is.na(lat) | is.na(lon)
+lat <- lat[!naInds]
+lon <- lon[!naInds]
+totalCritical <- totalCritical[!naInds]
+totalNonCritical <- totalNonCritical[!naInds]
+```
+
+```{r meanCriticalByZip}
+dat[ , .(.N,
+         mean_critical = mean(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`),
+         sd_critical = sd(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`),
+         mean_nonCritical = mean(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`),
+         sd_nonCritical = sd(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)), by = 'ZIP CODE'] %>% 
+  kable()
+
+```
+
+## Map analysis
+
+Here we use `ggmap`. 
+
+```{r staticMap, fig.width = 10, fig.height = 10}
+map <- get_map(location='syracuse', maptype = "terrain",
+               source='google',color='color',zoom=12)
+dat2 <- data.table(lon,lat,totalCritical,totalNonCritical)
+ggmap(map) + geom_point(size = 4,
+                        aes(x=lon, y=lat, show_guide = TRUE, colour=totalCritical), 
+                        data=dat2,alpha=1, na.rm = TRUE)  + 
+  scale_color_gradient(low="blue", high="red")
+
+ggmap(map) + geom_point(size = 4,
+                        aes(x=lon, y=lat, show_guide = TRUE, colour=totalNonCritical), 
+                        data=dat2,alpha=1, na.rm = TRUE)  + 
+  scale_color_gradient(low="blue", high="red")
+```
+
+
+Here we use the `leaflet` package. This one is interactive. 
+
+```{r leafletMap, echo=FALSE, warning=FALSE, message=FALSE, fig.width = 8, fig.height = 6}
+dat_map <- subset(dat, select = c("HSISID", "num_critical", "X", "Y"))
+setnames(dat_map, c("X", "Y"), c("lng", "lat"))
+dat_map <- subset(dat_map, !(lng == 0 | lat == 0))
+
+dat_pal <- colorBin(palette = "Blues", domain = dat_map$num_critical, n = 6)
+
+pal <- brewer.pal(6, "YlOrRd")
+dat_pal <- colorBin(palette = pal, domain = dat_map$num_critical, 
+                    bins = c(0, 1, 3, 5, 8, 25))
+
+m <- leaflet(dat_map) %>%
+  addTiles() %>% 
+  addCircles(lng = ~lng, lat = ~lat, color = ~dat_pal(num_critical)) %>% 
+  addLegend("bottomright", pal = dat_pal, values = ~num_critical,
+            title = "Number of Critical Violations",
+            opacity = 1)
+m  # print the map
+```
+
