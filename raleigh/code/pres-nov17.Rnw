@@ -189,6 +189,7 @@ days since opening (extracted from inspections), other variables include:
 \end{itemize}
 
 What is NOT in model: Inspector information, ZIP code
+Also not in because it failed: Restaurant Density
 \end{frame}
 
 
