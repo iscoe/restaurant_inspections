@@ -30,8 +30,8 @@ dat[ , .(N = .N,
 
 Here we use `ggmap`. 
 
-```{r staticMap, fig.width = 10, fig.height = 10}
-map <- get_map(location='raleigh', maptype = "terrain",
+```{r staticMap, fig.width = 8, fig.height = 6}
+map <- get_map(location='raleigh', maptype = "terrain", zoom = 10,
                source='google',color='color')
 ggmap(map) + geom_point(size = 1,
                         aes(x=X, y=Y, show_guide = TRUE, colour=num_critical), 
@@ -39,6 +39,26 @@ ggmap(map) + geom_point(size = 1,
   scale_color_gradient(low="blue", high="red")
 ```
 
+Analyze inspector patterns. 
+
+```{r staticMapInspector, fig.width = 14, fig.height = 10}
+# Take unique locations by inspector, so that we aren't mapping many inspections 
+# by same inspector at same location. 
+dat_inspector_for_map <- dat[ , list(X, Y), by = InspectedBy] %>% unique()
+map <- get_map(location='raleigh', maptype = "terrain", zoom = 11,
+               source='google',color='bw')
+ggmap(map) + 
+  geom_point(size = 2, data=dat_inspector_for_map, na.rm = TRUE,
+             aes(x=X, y=Y, colour= InspectedBy))
+
+# Lighter background with hollow circles. 
+map <- get_map(location='raleigh', maptype = "toner-lite", zoom = 11,
+               source='stamen', color='bw')
+ggmap(map) + 
+  geom_point(size = 3, data=dat_inspector_for_map, na.rm = TRUE, shape = 1,  # hollow circles
+             aes(x=X, y=Y, colour=factor(InspectedBy))) + 
+  scale_shape(solid = FALSE)
+```
 
 Here we use the `leaflet` package. This one is interactive. 
 
