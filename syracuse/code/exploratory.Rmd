@@ -17,6 +17,9 @@ library(ROCR)
 library(knitr)
 library(hexbin)
 library(RColorBrewer)
+library(sp)
+library(geosphere)
+library(randomForest)
 rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
 r <- rf(32)
 ```
@@ -33,24 +36,24 @@ worse areas.
 
 ```{r}
 dat[ , .(.N,
-         mean_critical = mean(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`),
-         sd_critical = sd(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`),
-         mean_nonCritical = mean(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`),
-         sd_nonCritical = sd(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)), by = 'INSPECTION TYPE'] %>% 
+         mean_critical = mean(nCritical),
+         sd_critical = sd(nCritical),
+         mean_nonCritical = mean(nNonCritical),
+         sd_nonCritical = sd(nNonCritical)), by = inspectionType] %>% 
   kable()
 
-nCritical <- dat[,`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`]
-nNonCritical <- dat[,`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`]
-inspectionType <- dat[,`INSPECTION TYPE`]
+nCritical <- dat[,nCritical]
+nNonCritical <- dat[,nNonCritical]
+inspectionType <- dat[,inspectionType]
 
 t.test(nCritical[inspectionType=="Inspection"],nCritical[inspectionType=="Re-Inspection"])
 
-ggplot(dat, aes(`INSPECTION TYPE`, `NUM CRITICAL VIOLATIONS (THIS INSPECTION)`)) + 
+ggplot(dat, aes(inspectionType, nCritical)) + 
   geom_boxplot() + labs(title = "Critical Violations by Inspection Type", y = "# Critical Violations", x = "Inspection Type")
 
 t.test(nNonCritical[inspectionType=="Inspection"],nNonCritical[inspectionType=="Re-Inspection"])
 
-ggplot(dat, aes(`INSPECTION TYPE`, `NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)) + 
+ggplot(dat, aes(inspectionType,nNonCritical)) + 
   geom_boxplot() + labs(title = "Non-Critical Violations by Inspection Type", y = "# Non-Critical Violations", x = "Inspection Type")
 
 ```
@@ -59,31 +62,31 @@ ggplot(dat, aes(`INSPECTION TYPE`, `NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION
 
 ```{r}
 
-ggplot(dat, aes(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`)) + geom_histogram(binwidth = 1, color = "black",fill = "lightblue") + labs(title = "Critical Violations Histogram",x = "Number of Critical Violations",y = "Number of Inspections")
+ggplot(dat, aes(nCritical)) + geom_histogram(binwidth = 1, color = "black",fill = "lightblue") + labs(title = "Critical Violations Histogram",x = "Number of Critical Violations",y = "Number of Inspections")
 
-ggplot(dat, aes(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)) + geom_histogram(binwidth = 1, color = "black",fill = "lightblue") + labs(title = "Non-Critical Violations Histogram",x = "Number of Non-Critical Violations",y = "Number of Inspections")
+ggplot(dat, aes(nNonCritical)) + geom_histogram(binwidth = 1, color = "black",fill = "lightblue") + labs(title = "Non-Critical Violations Histogram",x = "Number of Non-Critical Violations",y = "Number of Inspections")
 ```
 
 ## Violations by Facility Type 
 
 ```{r}
-count(dat[,`FACILITY TYPE`])
-type = sort(unique(dat[,`FACILITY TYPE`]))
-code <- dat[,`FACILITY CODE`]
+count(dat[,facilityType])
+type = sort(unique(dat[,facilityType]))
+code <- dat[,ID]
 ind = 0
 nType = c()
 for (i in type) {
-    iThisType <- (dat[,`FACILITY TYPE`]==i)
+    iThisType <- (dat[,facilityType]==i)
     ind = ind+1
     nType[ind] <- length(unique(code[iThisType]))
 }
 
-ggplot(dat, aes(`FACILITY TYPE`,`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`)) +
+ggplot(dat, aes(facilityType,nCritical)) +
   geom_boxplot() + 
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   labs(title = "Critical Violations by Facility Type",y = "# Critical Violations",x="")
 
-ggplot(dat, aes(`FACILITY TYPE`,`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)) +
+ggplot(dat, aes(facilityType,nNonCritical)) +
   geom_boxplot() + 
   theme(axis.text.x = element_text(angle = 30, hjust = 1)) + 
   labs(title = "Non-Critical Violations by Facility Type",y = "# Non-Critical Violations",x="")
@@ -93,26 +96,26 @@ ggplot(dat, aes(`FACILITY TYPE`,`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`)
 ## Are inspections worse for newer restaurants? 
 
 ```{r}
-ggplot(dat, aes(`DAYS UNTIL PERMIT EXPIRES`)) + geom_histogram(bins = 100, color = "black",fill = "lightblue") + labs(title = "Permit Age at Inspection",x = "Days Until Permit Expires",y = "Number of Inspections") + xlim(0,max(dat[,`DAYS UNTIL PERMIT EXPIRES`]))
+ggplot(dat, aes(daysTilExp)) + geom_histogram(bins = 100, color = "black",fill = "lightblue") + labs(title = "Permit Age at Inspection",x = "Days Until Permit Expires",y = "Number of Inspections") + xlim(0,max(dat[,daysTilExp]))
 
-hexbinplot(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`~`DAYS UNTIL PERMIT EXPIRES`,data=dat,colramp=rf,main = "Critical Violations vs. Age of Permit", xlab = "Days Until Permit Expires", ylab = "# Critical Violations",aspect=1,xlim=c(-110,max(dat[,`DAYS UNTIL PERMIT EXPIRES`])))
+hexbinplot(nCritical~daysTilExp,data=dat,colramp=rf,main = "Critical Violations vs. Age of Permit", xlab = "Days Until Permit Expires", ylab = "# Critical Violations",aspect=1,xlim=c(-110,max(dat[,daysTilExp])))
 
-ds = dat[,`DAYS UNTIL PERMIT EXPIRES`,`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`]
+ds = dat[,daysTilExp,nNonCritical]
 h <- hexbin(ds)
-hexbinplot(`NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)`~`DAYS UNTIL PERMIT EXPIRES`,data=dat,colramp=rf,main = "Non-Critical Violations vs. Age of Permit", xlab = "Days Until Permit Expires", ylab = "# Non-Critical Violations",aspect=1,xlim=c(-110,max(dat[,`DAYS UNTIL PERMIT EXPIRES`])))
+hexbinplot(nNonCritical~daysTilExp,data=dat,colramp=rf,main = "Non-Critical Violations vs. Age of Permit", xlab = "Days Until Permit Expires", ylab = "# Non-Critical Violations",aspect=1,xlim=c(-110,max(dat[,daysTilExp])))
 
 ```
 
 ## Do restaurants get worse inspections if they haven't been inspected in a while? 
 
 ```{r}
-dat <- dat[!is.na(`NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`)]
+dat <- dat[!is.na(nCritical_prev)]
 
-ggplot(dat, aes(`DAYS SINCE LAST INSPECTION`)) + geom_histogram(bins = 100, color = "black",fill = "lightblue") + labs(title = "Inspection Frequency",x = "Days Since Last Inspection",y = "Number of Inspections") + xlim(0,max(dat[,`DAYS SINCE LAST INSPECTION`]))
+ggplot(dat, aes(daysSincePrev)) + geom_histogram(bins = 100, color = "black",fill = "lightblue") + labs(title = "Inspection Frequency",x = "Days Since Last Inspection",y = "Number of Inspections") + xlim(0,max(dat[,daysSincePrev]))
 
-hexbinplot(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`~`DAYS SINCE LAST INSPECTION`,data=dat,colramp=rf,main = "Critical Violations vs. Last Inspection Date", xlab = "Days Since Last Inspection", ylab = "# Critical Violations",aspect=1)
+hexbinplot(nCritical~daysSincePrev,data=dat,colramp=rf,main = "Critical Violations vs. Last Inspection Date", xlab = "Days Since Last Inspection", ylab = "# Critical Violations",aspect=1)
 
-hexbinplot(`NUM CRITICAL VIOLATIONS (THIS INSPECTION)`~ `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`,data=dat,colramp=rf,main = "Current and Previous Critical Violations", xlab = "# Critical (Previous)", ylab = "# Critical (Current)",aspect=1)
+hexbinplot(nCritical~ nCritical_prev,data=dat,colramp=rf,main = "Current and Previous Critical Violations", xlab = "# Critical (Previous)", ylab = "# Critical (Current)",aspect=1)
 
 ```
 
@@ -126,41 +129,70 @@ a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
 
 ```{r createBinaryVariables, results = "hide"}
-dat[ , num_critical_binary := `NUM CRITICAL VIOLATIONS (THIS INSPECTION)` >= 1]
-dat[ , num_critical_previous_binary := `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` >= 1]
+dat[ , nCritical_binary := nCritical >= 1]
+dat[ , nCritical_prev_binary := nCritical_prev >= 1]
 
-dat_model <- subset(dat, select = c("num_critical_binary", 
-                                    "NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)"))
-iTrain <- dat[,`USE FOR TESTING`] == FALSE
-iTest <- dat[,`USE FOR TESTING`] == TRUE
+dat_model <- subset(dat, select = c(nCritical_binary,nCritical_prev_binary))
+iTrain <- dat[,isTest] == FALSE
+iTest <- dat[,isTest] == TRUE
 
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
 
-fit <- glm(num_critical_binary ~ `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)`,data = dat_model[iTrain], family = "binomial")
+fit <- glm(nCritical_binary ~ nCritical_prev_binary,data = dat_model[iTrain], family = "binomial")
 
 summary(fit)
 fitted_values <- predict(fit, dat_model[iTest], type = "response")
-pred1 <- prediction(fitted_values, dat_model[iTest]$num_critical_binary)
+pred1 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
 plot(performance(pred1, "tpr", "fpr"), main="ROC")
 performance(pred1, measure = "auc")@y.values  # AUC
 ```
 ```{r logisticModel}
-dat_model <- subset(dat, select = c("num_critical_binary", 
-                                    "FACILITY TYPE",
-                                    "ZIP CODE",
-                                    "NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)",
-                                    "NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)",
-                                    "DAYS UNTIL PERMIT EXPIRES","DAYS SINCE LAST INSPECTION"))
-
+dat_model <- subset(dat, select = c(nCritical_binary, 
+                                    facilityType,
+                                    zip,
+                                    nCritical_prev,
+                                    nNonCritical_prev,
+                                    daysTilExp,
+                                    daysSincePrev))
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(num_critical_binary ~ `FACILITY TYPE` + `ZIP CODE` + `NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)` + `DAYS UNTIL PERMIT EXPIRES` + `DAYS SINCE LAST INSPECTION`,data = dat_model[iTrain], family = "binomial")
-
+fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, dat_model[iTest], type = "response")
-pred2 <- prediction(fitted_values, dat_model[iTest]$num_critical_binary)
-plot(performance(pred1, "tpr", "fpr"), main="ROC")
-plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,colorize=TRUE)
+pred2 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
 performance(pred2, measure = "auc")@y.values  # AUC
+
+dat_model <- subset(dat, select = c(nCritical_binary, 
+                                    facilityType,
+                                    zip,
+                                    nCritical_prev,
+                                    nNonCritical_prev,
+                                    daysTilExp,
+                                    daysSincePrev,
+                                    avg_neighbor_num_critical,
+                                    avg_neighbor_num_non_critical))
+dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
+summary(fit)
+fitted_values <- predict(fit, dat_model[iTest], type = "response")
+pred3 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
+performance(pred3, measure = "auc")@y.values  # AUC
+
+x <- subset(dat_model,select = c(facilityType,
+                                    zip,
+                                    nCritical_prev,
+                                    nNonCritical_prev,
+                                    daysTilExp,
+                                    daysSincePrev,
+                                    avg_neighbor_num_critical,
+                                    avg_neighbor_num_non_critical))
+y <- subset(dat_model,select = nCritical_binary);
+model <- randomForest(x=x,y=y,importance=TRUE)
+
+png("../doc/roc.png")
+plot(performance(pred1, "tpr", "fpr"), main="ROC")
+plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,col="blue")
+plot(performance(pred3, "tpr", "fpr"), main="ROC",add = TRUE,col="red")
+legend(0.4,0.3,legend=c("Baseline (AR-1)","Logistic Regression (Original)","Logistic Regression (New Features Included)"),lty=c(1,1),col=c("black","blue","red"))
 ```
 
 
