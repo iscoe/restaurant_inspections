@@ -168,6 +168,10 @@ for (i in 1:n){
 
 ```
 
+```{r summaryPlots}
+ggplot(dat, aes(factor(major_violation))) + geom_bar()
+ggplot(dat, aes(factor(minor_violation))) + geom_bar()
+```
 
 ```{r logisticModel}
 dat$zip_code <- as.character(dat$zip_code)
