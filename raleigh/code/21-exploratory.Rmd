@@ -137,8 +137,6 @@ dat_income <- dat_income[ , !"zip", with = FALSE]
 kable(cor(dat_income))
 ```
 
-
-
 ## Quick modeling 
 
 Now we can have an auto-regressive model on previous value. This is also 
@@ -161,6 +159,8 @@ dat[ , num_critical_binary := num_critical >= 1]
 dat[ , num_critical_previous_binary := num_critical_previous >= 1]
 ```
 
+
+
 ```{r prepareDataForModel, results = "hide"}
 dat[ , num_critical_binary := factor(num_critical >= 1)]
 yelp_cats <- c("hotdogs", "sandwiches", "pizza", "tradamerican", "burgers", 
@@ -175,6 +175,20 @@ dat_model <- subset(dat, select = c("num_critical_binary", "Date",
                                     "avg_neighbor_num_critical", 
                                     "rating", "price", yelp_cats  # yelp
 ))
+```
+
+#normalizing data prior to placement in model (Alicia)
+```{r normalizingData}
+ dat_model
+ cat_vars <- c(yelp_cats, "price", "rating", "num_critical_binary", "Date")
+ cat_dat <- dat_model[,cat_vars, with=FALSE]
+ reg_dat <- dat_model[,!cat_vars, with=FALSE]
+ dat_model <- cbind(cat_dat, data.table(scale(reg_dat)))
+ dat_model
+```
+
+
+```{r splittingTrainAndTestData, result = "hide"}
 dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
 dat_model[ , price := factor(price, levels = c("$", "$$", "$$$", "$$$$"))]
 
@@ -185,6 +199,18 @@ train[ , Date := NULL]
 test[ , Date := NULL]
 ```
 
+```{r logisticModelUsingGlmnet}
+suppressMessages(library(glmnet))
+
+y <- train$num_critical_binary
+x <- train
+x$num_critical_binary <- NULL
+x <- as.matrix(x)
+#remove num_critical_binaryTrue and num_critical_binaryFalse
+fit = glmnet(x = x, y = y, family = "binomial")
+summary(fit)
+fitted_values <- predict(fit, newdata = test, type="response")
+```
 
 ```{r logisticModel}
 # Fit model. 
