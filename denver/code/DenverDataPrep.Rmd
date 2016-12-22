@@ -128,6 +128,11 @@ dat$inspection_date <- mdy(as.character(dat$inspection_date))
 ## Remove all non-regular inspections
 dat <- dat[type_of_inspection == "Regular"]
 
+## Drop all establishments with an establishment_type of non-zero.  We
+## think this eliminates special operations, like school cafeterias, 
+## stadium food courts, and other non-restaurant type facilities.
+dat <- dat[establishment_type == 0]
+
 ## Compute last major and minor violation count, along
 ## with days since last inspection
 dat <- dat[order(restaurant, inspection_date)]
@@ -169,6 +174,7 @@ dat$zip_code <- as.character(dat$zip_code)
 
 dat$major_violation_binary = (dat$major_violation > 0)
 dat <- subset(dat, select = c("major_violation", "inspection_date", "lagmaj", "lagmin", "zip_code", "days_since_last", "major_violation_binary", "avg_neighbor_major_violation", "avg_neighbor_minor_violation"))
+
 dat_trn <- dat[inspection_date < mdy("1/1/2016")]
 dat_tst <- dat[inspection_date > mdy("12/31/2015")]
 
