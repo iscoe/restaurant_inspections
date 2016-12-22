@@ -11,13 +11,14 @@ output:
 rm(list = ls())
 knitr::opts_chunk$set(echo = TRUE)
 
-library(data.table) 
+library(data.table)
 library(readxl)
 library(magrittr)
 library(stringr)
 library(lubridate)
 library(ROCR)
 library(ggplot2)
+library(geosphere)
 ```
 
 ```{r read}
@@ -27,13 +28,13 @@ establish_geo <- read_excel("../data/DenverGOV_Establishments_Geocoded.xls") %>%
 ```
 
 ```{r munge}
-## Light munging on inspections. 
+## Light munging on inspections.
 new_cols <- gsub(" ", "_", names(inspection)) %>% tolower()
 setnames(inspection, new_cols)
 inspection <- unique(inspection)        # remove duplicate rows
 
 ## Heavy munging on inspections
-inspection$major_violation <- 
+inspection$major_violation <-
   (inspection$item_1_a == "Yes") +
   (inspection$item_1_b == "Yes") +
   (inspection$item_1_c == "Yes") +
@@ -71,7 +72,7 @@ inspection$major_violation <-
   (inspection$item_8_b == "Yes") +
   (inspection$item_8_c == "Yes")
 
-inspection$minor_violation <- 
+inspection$minor_violation <-
   (inspection$item_9_a == "Yes") +
   (inspection$item_9_b == "Yes") +
   (inspection$item_10_a == "Yes") +
@@ -101,15 +102,15 @@ inspection$minor_violation <-
 
 inspection <- as.data.frame(inspection)
 
-enforce_action <- data.table(inspection[, c("time_stamp", "restaurant", "inspection_date", 
+enforce_action <- data.table(inspection[, c("time_stamp", "restaurant", "inspection_date",
                       "type_of_inspection", "major_violation", "minor_violation")])
 
-# Light munging on Establishment Geocoded. 
+# Light munging on Establishment Geocoded.
 new_cols <- gsub(" ", "_", names(establish_geo)) %>% tolower()
 setnames(establish_geo, new_cols)
 establish_geo[ , restaurant := toupper(gsub(" ", "", restaurant))]
 
-# Examine how well restaurants match up. 
+# Examine how well restaurants match up.
 intersect(enforce_action$restaurant, establish_geo$restaurant) %>% head()
 setdiff(enforce_action$restaurant, establish_geo$restaurant) %>% head()
 setdiff(establish_geo$restaurant, enforce_action$restaurant) %>% head()
@@ -120,26 +121,56 @@ merge(enforce_action, establish_geo, by = "restaurant")
 x <- setdiff(enforce_action$restaurant, establish_geo$restaurant) %>% as.character()
 # View(data.frame(u = x))  # need to do this to view for some reason (RStudio error)
 
-# Hack-ish merge: we have NOT resolved a lot of the restaurants that fail to match up. 
+# Hack-ish merge: we have NOT resolved a lot of the restaurants that fail to match up.
 dat <- merge(enforce_action, establish_geo, by = "restaurant")
 dat$inspection_date <- mdy(as.character(dat$inspection_date))
 
-dat_reg <- dat[type_of_inspection == "Regular"]
-dat_reg <- dat_reg[order(restaurant, inspection_date)]
-dat_reg[, lagmaj := shift(major_violation, 1L, type="lag"), by=restaurant]
-dat_reg[, lagmin := shift(minor_violation, 1L, type="lag"), by=restaurant]
-dat_reg[, lastinspect := shift(inspection_date, 1L, type="lag"), by=restaurant]
-dat_reg[, days_since_last := inspection_date - lastinspect]
+## Remove all non-regular inspections
+dat <- dat[type_of_inspection == "Regular"]
+
+## Compute last major and minor violation count, along
+## with days since last inspection
+dat <- dat[order(restaurant, inspection_date)]
+dat[, lagmaj := shift(major_violation, 1L, type="lag"), by=restaurant]
+dat[, lagmin := shift(minor_violation, 1L, type="lag"), by=restaurant]
+dat[, lastinspect := shift(inspection_date, 1L, type="lag"), by=restaurant]
+dat[, days_since_last := inspection_date - lastinspect]
+
+## Compute nearest neighbors' critical violations
+dat <- subset(dat, !(latitude == 0 | longitude == 0))  # ensure we have lat/long
+dat[ , c("avg_neighbor_major_violation", "avg_neighbor_minor_violation") := -1]
+all_location <- as.matrix(dat[ , list(latitude, longitude)])
+dat_loc <- subset(dat, select = c("restaurant", "inspection_date",
+                                  "major_violation", "minor_violation",
+                                  "latitude", "longitude"))
+n <- nrow(dat)
+for (i in 1:n){
+  curr_record <- dat[i,]
+  curr_loc <- c(curr_record$longitude, curr_record$latitude)
+  curr_date <- curr_record$inspection_date
+  curr_id <- curr_record$restaurant
+  dat_loc$dist <- distGeo(curr_loc, as.matrix(dat_loc[ , list(longitude, latitude)]))
+  res <- dat_loc[inspection_date < curr_date & restaurant != curr_id][order(dist)][
+    , .(mean(major_violation), mean(minor_violation)), by = restaurant][1:5, ][ ,
+      .(neigh_crit = mean(V1), neigh_non_crit = mean(V2),
+        top_match = restaurant[1], second_match = restaurant[2])]
+  dat[restaurant == curr_id & inspection_date == curr_date,
+      `:=`(avg_neighbor_major_violation = res$neigh_crit,
+           avg_neighbor_minor_violation = res$neigh_non_crit,
+           top_match = res$top_match,
+           second_match = res$second_match)]
+}
+
 ```
 
 
 ```{r logisticModel}
-dat_reg$zip_code <- as.character(dat_reg$zip_code)
+dat$zip_code <- as.character(dat$zip_code)
 
-dat_reg$num_critical_binary = (dat_reg$major_violation > 0)
-dat_reg <- subset(dat_reg, select = c("major_violation", "inspection_date", "lagmaj", "lagmin", "zip_code", "days_since_last", "num_critical_binary"))
-dat_trn <- dat_reg[inspection_date < mdy("1/1/2016")]
-dat_tst <- dat_reg[inspection_date > mdy("12/31/2015")]
+dat$major_violation_binary = (dat$major_violation > 0)
+dat <- subset(dat, select = c("major_violation", "inspection_date", "lagmaj", "lagmin", "zip_code", "days_since_last", "major_violation_binary", "avg_neighbor_major_violation", "avg_neighbor_minor_violation"))
+dat_trn <- dat[inspection_date < mdy("1/1/2016")]
+dat_tst <- dat[inspection_date > mdy("12/31/2015")]
 
 dat_trn <- dat_trn[complete.cases(dat_trn)]
 
@@ -147,10 +178,10 @@ zipslist <- data.frame(zip_code = unique(dat_trn$zip_code), foo = TRUE)
 dat_tst <- data.table(merge(zipslist, dat_tst, by = "zip_code", all.x = TRUE))
 dat_tst <- dat_tst[complete.cases(dat_tst)]
 
-fit <- glm(num_critical_binary ~ lagmaj, data = dat_trn, family = "binomial")
+fit <- glm(major_violation_binary ~ lagmaj, data = dat_trn, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, newdata = dat_tst, type = "response")
-pred.baseline <- prediction(fitted_values, dat_tst$num_critical_binary)
+pred.baseline <- prediction(fitted_values, dat_tst$major_violation_binary)
 
 perf <- performance(pred.baseline, measure = "tpr", x.measure = "fpr")
 # I know, the following code is bizarre. Just go with it.
@@ -161,10 +192,10 @@ roc.data.baseline <- data.frame(fpr=unlist(perf@x.values),
                        tpr=unlist(perf@y.values),
                        model="Baseline")
 
-fit <- glm(num_critical_binary ~ lagmaj + lagmin + days_since_last + zip_code, data = dat_trn, family = "binomial")
+fit <- glm(major_violation_binary ~ lagmaj + lagmin + days_since_last + avg_neighbor_major_violation + avg_neighbor_minor_violation, data = dat_trn, family = "binomial")
 summary(fit)
 fitted_values <- predict(fit, newdata = dat_tst, type = "response")
-pred.expanded <- prediction(fitted_values, dat_tst$num_critical_binary)
+pred.expanded <- prediction(fitted_values, dat_tst$major_violation_binary)
 
 perf <- performance(pred.expanded, measure = "tpr", x.measure = "fpr")
 # I know, the following code is bizarre. Just go with it.
@@ -175,26 +206,14 @@ roc.data.expanded <- data.frame(fpr=unlist(perf@x.values),
                        tpr=unlist(perf@y.values),
                        model="Expanded")
 
-
 df <- data.frame(x = 0:1 , y = 0:1)
 
 ggplot() +
-    geom_line(data = roc.data.baseline, aes(x=fpr, y=tpr, color = model)) + 
-    geom_line(data = roc.data.expanded, aes(x=fpr, y=tpr, color = model)) + 
+    geom_line(data = roc.data.baseline, aes(x=fpr, y=tpr, color = model)) +
+    geom_line(data = roc.data.expanded, aes(x=fpr, y=tpr, color = model)) +
     xlab("False Positive Rate") + ylab("True Positive Rate") +
     geom_line(data = df, aes(x = x, y = y), linetype = "dotted") +
     labs(color = "Model") + theme(legend.position="bottom")
-
-
 ```
 
-```{r logisticModel2}
-##dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-##fit <- glm(num_critical_binary ~ num_critical_previous + years_from_opening + 
-##             num_inspect + zip + Median_household_income_dollars + 
-##             Percent_Families_Below_Poverty_Line + avg_neighbor_num_critical, 
-##           data = dat_model, family = "binomial")
-## summary(fit)
-```
-
-Assess fit of logistic model. 
+Assess fit of logistic model.
