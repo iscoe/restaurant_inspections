@@ -19,6 +19,8 @@ library(data.table)
 library(readr)
 library(magrittr)
 library(lubridate)
+library(sp)
+library(geosphere)
 
 options(stringsAsFactors=TRUE)
 
@@ -32,7 +34,7 @@ rm(inspection.csv)
 ## SUMMARIZE EACH INSPECTION FOR EACH RESTAURANT
 ## ================================================
 
-inspection2 <- NULL
+dat <- NULL
 restaurantId <- sort(unique(inspection[,`FACILITY CODE`]))
 for (id in restaurantId) {
     inspection_thisRestaurant <- inspection[`FACILITY CODE` == id]
@@ -41,6 +43,8 @@ for (id in restaurantId) {
     facilityName = inspection_thisRestaurant[1,FACILITY]
     facilityZip = inspection_thisRestaurant[1,`FACILITY POSTAL ZIPCODE`]
     facilityType = inspection_thisRestaurant[1,`FOOD SERVICE DESCRIPTION`]
+    lat = inspection_thisRestaurant[1,`LATITUDE`]
+    lon = inspection_thisRestaurant[1,`LONGITUDE`]
     inspectionType = inspection_thisRestaurant[1,`INSPECTION TYPE`]
     uniqueDates = unique(inspection_thisRestaurant[,`DATE OF INSPECTION`])
     
@@ -61,30 +65,33 @@ for (id in restaurantId) {
         
         daysSinceLastInspection <- as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y")
         
-        # testDate = "01/01/2016"
-        # if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
-        #     isTest <- TRUE
-        # } else {
-        #     isTest <- FALSE
-        # }
+        testDate = "01/01/2016"
+        if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
+            isTest <- TRUE
+        } else {
+            isTest <- FALSE
+        }
         
-        inspection2_thisRestaurant <- data.table('FACILITY CODE' = id,
-                                             'FACILITY NAME' = facilityName,
-                                             'FACILITY TYPE' = facilityType,
-                                             'ZIP CODE' = facilityZip,
-                                             'INSPECTION DATE' = date,
-                                             'INSPECTION TYPE' = inspectionType,
-                                             'NUM CRITICAL VIOLATIONS (THIS INSPECTION)' = nCritical,
-                                             'NUM NON-CRITICAL VIOLATIONS (THIS INSPECTION)' = nNonCritical,
-                                             'NUM CRITICAL VIOLATIONS (PREVIOUS INSPECTION)' = nPastCritical,
-                                             'NUM NON-CRITICAL VIOLATIONS (PREVIOUS INSPECTION)' = nPastNonCritical,
-                                             'DAYS UNTIL PERMIT EXPIRES' = daysRemainingOnPermit,
-                                             'DAYS SINCE LAST INSPECTION' = daysSinceLastInspection)
+        dat_thisRestaurant <- data.table(ID = id,
+                                             name = facilityName,
+                                             facilityType = facilityType,
+                                             zip = facilityZip,
+                                             date = date,
+                                             inspectionType = inspectionType,
+                                             nCritical = nCritical,
+                                             nNonCritical = nNonCritical,
+                                             nCritical_prev = nPastCritical,
+                                             nNonCritical_prev = nPastNonCritical,
+                                             daysTilExp = daysRemainingOnPermit,
+                                             daysSincePrev = daysSinceLastInspection,
+                                             isTest = isTest,
+                                             X = lon,
+                                             Y = lat)
         
-    if (is.null(inspection2)) {
-        inspection2 <- inspection2_thisRestaurant
+    if (is.null(dat)) {
+        dat <- dat_thisRestaurant
     } else {
-        inspection2 <- rbind(inspection2,inspection2_thisRestaurant)
+        dat <- rbind(dat,dat_thisRestaurant)
     }
         nPastCritical <- nCritical
         nPastNonCritical <- nNonCritical
@@ -92,5 +99,34 @@ for (id in restaurantId) {
     }
 }
 
-saveRDS(inspection2,'../data/inspection2.Rds')
-write.csv(inspection2,'../data/inspections2.csv')
+
+# Compute nearest neighbors' critical violations. ------------------------------
+dat <- subset(dat, !(X == 0 | Y == 0))  # ensure we have lat/long
+dat[ , c("avg_neighbor_num_critical", "avg_neighbor_num_non_critical") := -1]
+all_location <- as.matrix(dat[ , list(X, Y)])
+dat_loc <- subset(dat, select = c("ID", "date", 
+                                  "nCritical", "nNonCritical", 
+                                  "X", "Y"))
+n <- nrow(dat)
+for (i in 1:n){
+    print(paste("Proccesing", i, "of", n))
+    curr_record <- dat[i,]
+    curr_loc <- c(curr_record$X, curr_record$Y)
+    curr_date <- curr_record$date
+    curr_id <- curr_record$ID
+    dat_loc$dist <- distGeo(curr_loc, as.matrix(dat_loc[ , list(X, Y)]))
+    res <- dat_loc[date < curr_date & ID != curr_id][order(dist)][ 
+        , .(mean(nCritical), mean(nNonCritical)), by = ID][1:5, ][ ,
+          .(neigh_crit = mean(V1), neigh_non_crit = mean(V2), 
+            top_match = ID[1], second_match = ID[2])]
+    dat[ID == curr_id & date == curr_date, 
+        `:=`(avg_neighbor_num_critical = res$neigh_crit, 
+             avg_neighbor_num_non_critical = res$neigh_non_crit, 
+             top_match = res$top_match, 
+             second_match = res$second_match)]
+}
+
+
+
+saveRDS(dat,'../data/inspection2.Rds')
+write.csv(dat,'../data/inspections2.csv')
