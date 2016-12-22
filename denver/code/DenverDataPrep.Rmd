@@ -134,7 +134,7 @@ dat_reg[, days_since_last := inspection_date - lastinspect]
 
 
 ```{r logisticModel}
-dat_reg$zip_code <- as.numeric(dat_reg$zip_code)
+dat_reg$zip_code <- as.character(dat_reg$zip_code)
 
 dat_reg$num_critical_binary = (dat_reg$major_violation > 0)
 dat_reg <- subset(dat_reg, select = c("major_violation", "inspection_date", "lagmaj", "lagmin", "zip_code", "days_since_last", "num_critical_binary"))
