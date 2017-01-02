@@ -76,6 +76,8 @@ because they did not match with Yelp data.
 
 ### Census
 
+Relevant files: `12-read-census.R`, `14-merge-inspections-census-yelp.R`. 
+
 There were six census data sources, each at the ZIP code level: 
 
 - Income and work
@@ -91,6 +93,8 @@ The census data were merged with the inspections data,
 which reduced the inspections from 18,704 rows to 18,469 rows. 
 
 ### Yelp data 
+
+Relevant files: `13-clean-yelp.R`, `14-merge-inspections-census-yelp.R`. 
 
 The Yelp data were merged with the inspections data using the phone number. This resulted 
 in only about 2/3 of the rows matching. Efforts were made to approximately match
