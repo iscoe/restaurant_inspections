@@ -212,6 +212,7 @@ yelp_cats <- c("hotdogs", "sandwiches", "pizza", "tradamerican", "burgers",
                "italian", "newamerican", "chicken_wings", "delis", "bars", 
                "salad", "seafood", "bbq", "bakeries", "sushi")
 dat_model <- subset(dat, select = c("num_critical_binary", "Date",
+                                    "FacilityType",
                                     "num_critical_previous",
                                     "days_from_open_date",
                                     "days_since_previous_inspection",
@@ -231,9 +232,16 @@ test[ , Date := NULL]
 @
 
 <<fitLogisticRegModel, echo = FALSE, results = "hide">>=
+# Fit a baseline model using only num_critical_previous as sole predictor. 
+fit_baseline <- glm(num_critical_binary ~ num_critical_previous, data = train, family = "binomial")
+fitted_baseline <- predict(fit_baseline, newdata = test, type = "response")
+pred_baseline <- prediction(fitted_baseline, test$num_critical_binary)
+round(performance(pred_baseline, measure = "auc")@y.values[[1]], 3)
+
 fit <- glm(num_critical_binary ~ ., data = train, family = "binomial")
 fitted_values <- predict(fit, newdata = test, type = "response")
 pred <- prediction(fitted_values, test$num_critical_binary)
+round(performance(pred, measure = "auc")@y.values[[1]], 3)
 @
 
 
@@ -245,8 +253,11 @@ The AUC on test-set is
 
 <<performance, echo = FALSE, fig.width = 3.5, fig.height = 3.5>>=
 # ROC.
-plot(performance(pred, "tpr", "fpr"), main="ROC")
+plot(performance(pred, "tpr", "fpr"), main="ROC", col = "blue")
+plot(performance(pred_baseline, "tpr", "fpr"), main="ROC", add=TRUE, col = "red")
 abline(0, 1, lty=2)
+# legend("bottomright", c("Baseline", "Full model", "Chance level"), 
+#        col = c("red", "blue", "black"), lty = c(1, 1, 2))
 @
 \end{frame}
 
@@ -280,7 +291,7 @@ ggplot(dat, aes(num_critical, Score)) + geom_point() +
 
 \begin{frame}[fragile]{Appendix B}
 <<varImp, fig.height = 4.5, fig.width = 6, echo = FALSE>>=
-rf <- randomForest(factor(num_critical_binary) ~ ., data = train)
+rf <- randomForest(factor(num_critical_binary) ~ . - FacilityType, data = train)
 varImpPlot(rf, main = "Variable Importance Plot (Random Forest)", cex = 0.75)
 @
 \end{frame}
