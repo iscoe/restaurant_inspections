@@ -76,6 +76,8 @@ because they did not match with Yelp data.
 
 ### Census
 
+Relevant files: `12-read-census.R`, `14-merge-inspections-census-yelp.R`. 
+
 There were six census data sources, each at the ZIP code level: 
 
 - Income and work
@@ -92,6 +94,8 @@ which reduced the inspections from 18,704 rows to 18,469 rows.
 
 ### Yelp data 
 
+Relevant files: `13-clean-yelp.R`, `14-merge-inspections-census-yelp.R`. 
+
 The Yelp data were merged with the inspections data using the phone number. This resulted 
 in only about 2/3 of the rows matching. Efforts were made to approximately match
 by restaurant name using several methods (Levenshtein, restricted Damerau-Leveshtein) 
@@ -105,7 +109,7 @@ name and address might yield better results.
 The Yelp data included many restaurant categories. Somewhat arbitrarily, the top 
 20 restaurant categories were used. The frequencies of each of the top 20 categories
 are shown in the following table. Note that categories are not exclusive, as a 
-facility may be fall several categories, thus the frequency column does not need 
+facility may be fall in several categories, thus the frequency column does not need 
 to sum to 1. 
 
 |Yelp Category|Frequency|

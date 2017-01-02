@@ -228,6 +228,7 @@ $(document).ready(function () {
 </div>
 <div id="census" class="section level3">
 <h3>Census</h3>
+<p>Relevant files: <code>12-read-census.R</code>, <code>14-merge-inspections-census-yelp.R</code>.</p>
 <p>There were six census data sources, each at the ZIP code level:</p>
 <ul>
 <li>Income and work</li>
@@ -241,8 +242,9 @@ $(document).ready(function () {
 </div>
 <div id="yelp-data" class="section level3">
 <h3>Yelp data</h3>
+<p>Relevant files: <code>13-clean-yelp.R</code>, <code>14-merge-inspections-census-yelp.R</code>.</p>
 <p>The Yelp data were merged with the inspections data using the phone number. This resulted in only about 2/3 of the rows matching. Efforts were made to approximately match by restaurant name using several methods (Levenshtein, restricted Damerau-Leveshtein) with different maximum distance parameters. However, manual inspection revealed that restaurants that matched using the approximate string matching yet whose phone numbers differ (and thus would not be matched by joining on phone number) were almost universally false positives as they differed substantially in other fields such as their address. A better approach that approximately matches on both name and address might yield better results.</p>
-<p>The Yelp data included many restaurant categories. Somewhat arbitrarily, the top 20 restaurant categories were used. The frequencies of each of the top 20 categories are shown in the following table. Note that categories are not exclusive, as a facility may be fall several categories, thus the frequency column does not need to sum to 1.</p>
+<p>The Yelp data included many restaurant categories. Somewhat arbitrarily, the top 20 restaurant categories were used. The frequencies of each of the top 20 categories are shown in the following table. Note that categories are not exclusive, as a facility may be fall in several categories, thus the frequency column does not need to sum to 1.</p>
 <table>
 <thead>
 <tr class="header">
