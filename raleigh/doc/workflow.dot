@@ -1,0 +1,80 @@
+// To generate graph as SVG:
+// dot -Tsvg dep.dot > dep.svg
+// From R, from within main project directory: system("dot -Tsvg raleigh/doc/workflow.dot > raleigh/doc/workflow.svg")
+// Slightlier fancier version: system("unflatten -l 1 raleigh/doc/workflow.dot | dot -Tpng -o raleigh/doc/workflow.png")
+// DiagrammeR::grViz("raleigh/doc/workflow.dot")
+digraph Workflow {
+  # Nodes. 
+  
+  {
+  ratio = "compress"
+  nodesep = 0.1
+  
+  # Nodes 
+  node [margin=0 fontcolor=black fontsize=12 width=0.5 shape=ellipse style=filled] 
+  
+  readInspections [label=<11-read-inspections.R<br/>
+<font color="red">Food_Inspections.csv</font><br/>
+<font color="red">Food_Inspection_Violations.csv</font><br/>
+<font color="red">Restaurants_in_Wake_County.csv</font><br/>
+<font color="blue">violation-freq.csv</font><br/>
+<font color="blue">inspections.csv</font>>]
+  readCensus [label=<12-read-census.R<br/>
+<font color="red">wake_zips_income_and_work.xls</font><br/>
+<font color="blue">census.csv</font>>]
+  yelpWork [label=<yelpWork/parseYelpCategories.py<br/>
+<font color="red">yelpWork/categories.json</font><br/>
+<font color="blue">yelpWork/foodCategories.csv</font>>]
+  pullYelp [label=<01-pullYelpData.R<br/>
+<font color="red">Yelp API (online)</font><br/>
+<font color="red">Restaurants_in_Wake_County.csv</font><br/>
+<font color="red">yelpWork/foodCategories.csv</font><br/>
+<font color="blue">yelpData.csv</font>
+<font color="blue">yelpRestaurantCategories.csv</font>
+>]
+  removeYelpDuplicates [label=<01-removeYelpDuplicates.R<br/>
+<font color="red">yelpData.csv</font><br/>
+<font color="red">yelpData-2.csv</font><br/>
+<font color="red">yelpRestaurantCategories.csv</font><br/>
+<font color="red">yelpRestaurantCategories-2.csv</font><br/>
+<font color="blue">raleighYelpData.csv</font><br/>
+<font color="blue">raleighYelpAllCategories.csv</font><br/>
+<font color="blue">raleighYelpNoNullCategories.csv</font>
+>]
+  cleanYelp [label=<13-clean-yelp.R<br/>
+<font color="red">raleighYelpData.csv</font><br/>
+<font color="red">raleighYelpNoNullCategories.csv</font><br/>
+<font color="blue">yelp.csv</font>>]
+  mergeInspectionsCensusYelp [label=<14-merge-inspections-census-yelp.R<br/>
+<font color="red">inspections.csv</font><br/>
+<font color="red">census.csv</font><br/>
+<font color="red">yelp.csv</font><br/>
+<font color="blue">merged.csv</font>>]
+  exploratory [label=<21-exploratory.Rmd<br/>
+<font color="red">merged.csv</font><br/>
+<font color="blue">21-exploratory.html</font>>]
+  exploratorySpatial [label=<22-exploratory-spatial.Rmd<br/>
+<font color="red">merged.csv</font><br/>
+<font color="blue">21-exploratory-spatial.html</font>>]
+  restaurantDensity [label=<23-density-of-restaurants.R<br/>
+<font color="red">merged.csv</font><br/>
+<font color="blue">exploratory plots (no written output)</font>>]
+  presNov17 [label=<pres-Nov17.Rnw<br/>
+<font color="red">merged.csv</font><br/>
+<font color="blue">pres-Nov17.pdf (slides)</font>>]
+  }
+  
+  # Edges. 
+  
+  yelpWork -> pullYelp
+  pullYelp -> removeYelpDuplicates
+  removeYelpDuplicates -> cleanYelp
+  readInspections -> mergeInspectionsCensusYelp
+  readCensus -> mergeInspectionsCensusYelp
+  cleanYelp -> mergeInspectionsCensusYelp
+  mergeInspectionsCensusYelp -> exploratory
+  mergeInspectionsCensusYelp -> exploratorySpatial
+  mergeInspectionsCensusYelp -> restaurantDensity
+  mergeInspectionsCensusYelp -> presNov17
+  
+}

@@ -3,3 +3,10 @@
 .RData
 .Ruserdata
 *.html
+
+# Tex files. 
+*.log
+*.nav
+*.snm
+*.toc
+*.vrb

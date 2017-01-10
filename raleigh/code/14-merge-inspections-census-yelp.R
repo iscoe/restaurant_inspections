@@ -25,7 +25,7 @@ nrow(inspections)
 
 # Inner join. 
 inspections_census <- merge(inspections, census, by = "zip")
-
+inspections_census[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 
 # Merge in Yelp data. -----------------------------------------------------
 # Clean up names. 
@@ -56,9 +56,11 @@ inspections_census[ , PhoneNumber := paste0("1", substr(PhoneNumber, 1, 10))]
 setdiff(inspections_census$PhoneNumber, yelp$phone)
 
 # Match by exact phone number. 
-inspections_census <- merge(inspections_census, yelp, 
+inspections_census_yelp <- merge(inspections_census, yelp, 
                             by.x = "PhoneNumber", by.y = "phone", all.x = TRUE)
-
+inspections_census_yelp[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
+# Use the Yelp ID to see how many there are with Yelp data. 
+inspections_census_yelp[!is.na(id) , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 
 # Write out data.  --------------------------------------------------------
-write_csv(inspections_census, "raleigh/data/merged.csv")
+write_csv(inspections_census_yelp, "raleigh/data/merged.csv")

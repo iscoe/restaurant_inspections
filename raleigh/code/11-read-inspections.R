@@ -25,9 +25,9 @@ violation <- subset(violation, select = -1)
 restaurant_info <- subset(restaurant_info, select = -1)
 
 # Examine how well the datasets would merge.
-inspection[ , uniqueN(HSISID)]
-violation[ , uniqueN(HSISID)]
-restaurant_info[ , uniqueN(HSISID)]
+inspection[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
+violation[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
+restaurant_info[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 setdiff(inspection$HSISID, violation$HSISID)
 setdiff(violation$HSISID, inspection$HSISID)
 setdiff(inspection$HSISID, restaurant_info$HSISID) %>% length()  # > 1,000 mis-matches
@@ -49,6 +49,7 @@ violation[ , .N, by = .(critical, ViolationCode)][order(ViolationCode)]
 violation_agg <- violation[ , .(num_critical = length(which(critical == "Yes")), 
                num_non_critical = length(which(critical == "No" | is.na(critical)))),
            by = .(HSISID, InspectDate, InspectedBy)]
+violation_agg[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 
 
 # Merge inspections and violations.  --------------------------------------
