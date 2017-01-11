@@ -24,6 +24,12 @@ inspection <- subset(inspection, select = -1)
 violation <- subset(violation, select = -1)
 restaurant_info <- subset(restaurant_info, select = -1)
 
+# Remove Re-Inspections. 
+print("Removing re-inspections:")
+inspection[ , .N, by = Type]
+inspection[ , .N / nrow(inspection), by = Type]  # re-inspections approx. 1.4% of data
+inspection <- subset(inspection, Type != "Re-Inspection")
+
 # Examine how well the datasets would merge.
 inspection[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 violation[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
@@ -90,6 +96,23 @@ dat[ , zip := substr(PostalCode, 1, 5)]
 # Compute previous violations.  -------------------------------------------
 dat <- dat[order(HSISID, Date)]
 dat[ , num_critical_previous := shift(num_critical, 1, type = "lag"), by = HSISID]
+dat <- dat[order(HSISID, Date)]
+dat[ , num_non_critical_previous := shift(num_non_critical, 1, type = "lag"), by = HSISID]
+
+# Compute rolling mean of previous violations. -------------------------------
+# Critical violations. 
+dat <- dat[order(HSISID, Date)]
+dat[ , `:=`(cum_sum = cumsum(num_critical), index = 1:.N), by = HSISID]
+dat[ , cum_sum_minus_current := cum_sum - num_critical]  # exclude the current from cumsum
+dat[index != 1, num_critical_mean_previous := cum_sum_minus_current / (index - 1)]
+dat[ , c("cum_sum", "cum_sum_minus_current", "index") := NULL]
+# Non-critical violations. 
+dat <- dat[order(HSISID, Date)]
+dat[ , `:=`(cum_sum = cumsum(num_non_critical), index = 1:.N), by = HSISID]
+dat[ , cum_sum_minus_current := cum_sum - num_non_critical]  # exclude the current from cumsum
+dat[index != 1, num_non_critical_mean_previous := cum_sum_minus_current / (index - 1)]
+dat[ , c("cum_sum", "cum_sum_minus_current", "index") := NULL]
+
 
 # Compute previous inspections info. --------------------------------------
 dat <- dat[order(HSISID, Date)]
@@ -98,6 +121,16 @@ dat[ , days_since_previous_inspection :=
            as.numeric(difftime(Date, previous_inspection_date, units = "days"))]
 dat[ , days_from_open_date := 
        as.numeric(difftime(Date, RestaurantOpenDate, units = "days"))]
+
+
+# Inspection number and inspector ID.  ------------------------------------
+dat <- dat[order(Date, HSISID)]
+dat[ , inspection_num := 1:.N, by = HSISID]
+dat <- dat[order(Date, HSISID)]
+dat[ , inspector_ID := as.numeric(factor(InspectedBy))]
+dat[ , previous_inspection_by_same_inspector := c(0, diff(inspector_ID)) == 0, 
+     by = HSISID]
+dat[inspection_num == 1, previous_inspection_by_same_inspector := NA]  # first inspection has no previous
 
 
 # Compute nearest neighbors' critical violations. ------------------------------
@@ -125,6 +158,25 @@ for (i in 1:n){
            top_match = res$top_match, 
            second_match = res$second_match)]
 }
+
+
+# Re-order columns.  ------------------------------------------------------
+setcolorder(dat, 
+            c("HSISID", "Date", 
+              "Name", "Address1", "Address2", 
+              "City", "State", "PostalCode", "PhoneNumber", 
+              "RestaurantOpenDate", "days_from_open_date", 
+              "FacilityType", "X", "Y", "GeocodeStatus", "zip",
+              "Type", "Description", 
+              "InspectedBy", "inspection_num", "inspector_ID",
+              "previous_inspection_date", "days_since_previous_inspection", 
+              "previous_inspection_by_same_inspector", 
+              "Score", "num_critical", "num_non_critical", 
+              "num_critical_previous", "num_non_critical_previous", 
+              "num_critical_mean_previous", 
+              "num_non_critical_mean_previous", 
+              "avg_neighbor_num_critical", "avg_neighbor_num_non_critical", 
+              "top_match", "second_match"))
 
 # Write out the data. 
 write_csv(dat, path = "raleigh/data/inspections.csv")
