@@ -30,6 +30,11 @@ options(stringsAsFactors=TRUE)
 inspection.csv <- read_csv("../data/New_Food_Service_Inspections.csv")
 inspection <- data.table(inspection.csv) 
 rm(inspection.csv)
+
+license.csv <- read_csv("../data/Active_Liquor_Licenses_in_Syracuse.csv")
+license <- data.table(license.csv)
+rm(license.csv)
+
 ## ================================================
 ## SUMMARIZE EACH INSPECTION FOR EACH RESTAURANT
 ## ================================================
@@ -45,8 +50,11 @@ for (id in restaurantId) {
     facilityType = inspection_thisRestaurant[1,`FOOD SERVICE DESCRIPTION`]
     lat = inspection_thisRestaurant[1,`LATITUDE`]
     lon = inspection_thisRestaurant[1,`LONGITUDE`]
-    inspectionType = inspection_thisRestaurant[1,`INSPECTION TYPE`]
     uniqueDates = unique(inspection_thisRestaurant[,`DATE OF INSPECTION`])
+    
+    licenseDist <- distGeo(c(lon,lat), as.matrix(license[ , list(Longitude,Latitude)]))
+    nearestLicense <- min(licenseDist[!is.na(licenseDist)])
+    sellsAlcohol = nearestLicense < 15 # assume if the distance to the nearest license is less than 15 meters, its in the list
     
     nPastCritical <- 0
     nPastNonCritical <- 0
@@ -55,15 +63,16 @@ for (id in restaurantId) {
         inspection_thisDate <- inspection_thisRestaurant[`DATE OF INSPECTION`== date]
         nCritical <- sum(inspection_thisDate[,`CRITICAL VIOLATION`] == "Critical Violation")
         nNonCritical <- sum(inspection_thisDate[,`CRITICAL VIOLATION`] == "Not Critical Violation")
+        inspectionType = unique(inspection_thisDate[,`INSPECTION TYPE`])
             
-        daysRemainingOnPermit <- as.Date(unique(inspection_thisDate[,`PERMIT EXPIRATION DATE`]),format="%m/%d/%Y") - as.Date(date,format="%m/%d/%Y")
+        daysRemainingOnPermit <- as.numeric(as.Date(unique(inspection_thisDate[,`PERMIT EXPIRATION DATE`]),format="%m/%d/%Y") - as.Date(date,format="%m/%d/%Y"))
         if (is.null(previousInspectionDate) == TRUE) {
-            previousInspectionDate <- date
             nPastCritical <- NA
             nPastNonCritical <- NA
+            daysSinceLastInspection <- NA
+        } else {
+            daysSinceLastInspection <- as.numeric(as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y"))
         }
-        
-        daysSinceLastInspection <- as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y")
         
         testDate = "01/01/2016"
         if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
@@ -84,6 +93,7 @@ for (id in restaurantId) {
                                              nNonCritical_prev = nPastNonCritical,
                                              daysTilExp = daysRemainingOnPermit,
                                              daysSincePrev = daysSinceLastInspection,
+                                             alcLicense = sellsAlcohol,
                                              isTest = isTest,
                                              X = lon,
                                              Y = lat)
@@ -95,6 +105,7 @@ for (id in restaurantId) {
     }
         nPastCritical <- nCritical
         nPastNonCritical <- nNonCritical
+        previousInspectionDate <- date
         
     }
 }

@@ -20,6 +20,7 @@ library(RColorBrewer)
 library(sp)
 library(geosphere)
 library(randomForest)
+library(glmnet)
 rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
 r <- rf(32)
 ```
@@ -129,6 +130,8 @@ a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
 
 ```{r createBinaryVariables, results = "hide"}
+
+# baseline model, basically a first order autoregressive process
 dat[ , nCritical_binary := nCritical >= 1]
 dat[ , nCritical_prev_binary := nCritical_prev >= 1]
 
@@ -147,52 +150,80 @@ plot(performance(pred1, "tpr", "fpr"), main="ROC")
 performance(pred1, measure = "auc")@y.values  # AUC
 ```
 ```{r logisticModel}
-dat_model <- subset(dat, select = c(nCritical_binary, 
-                                    facilityType,
-                                    zip,
-                                    nCritical_prev,
-                                    nNonCritical_prev,
-                                    daysTilExp,
-                                    daysSincePrev))
-dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
-summary(fit)
-fitted_values <- predict(fit, dat_model[iTest], type = "response")
-pred2 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
-performance(pred2, measure = "auc")@y.values  # AUC
 
-dat_model <- subset(dat, select = c(nCritical_binary, 
-                                    facilityType,
-                                    zip,
-                                    nCritical_prev,
-                                    nNonCritical_prev,
-                                    daysTilExp,
-                                    daysSincePrev,
-                                    avg_neighbor_num_critical,
-                                    avg_neighbor_num_non_critical))
-dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
-fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
-summary(fit)
-fitted_values <- predict(fit, dat_model[iTest], type = "response")
-pred3 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
-performance(pred3, measure = "auc")@y.values  # AUC
+# # alternative logistic regfression models
+# dat_model <- subset(dat, select = c(nCritical_binary, 
+#                                     facilityType,
+#                                     zip,
+#                                     nCritical_prev,
+#                                     nNonCritical_prev,
+#                                     daysTilExp,
+#                                     daysSincePrev))
+# dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+# fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
+# summary(fit)
+# fitted_values <- predict(fit, dat_model[iTest], type = "response")
+# pred2 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
+# performance(pred2, measure = "auc")@y.values  # AUC
+# 
+# dat_model <- subset(dat, select = c(nCritical_binary, 
+#                                     facilityType,
+#                                     zip,
+#                                     nCritical_prev,
+#                                     nNonCritical_prev,
+#                                     daysTilExp,
+#                                     daysSincePrev,
+#                                     avg_neighbor_num_critical,
+#                                     avg_neighbor_num_non_critical))
+# dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+# fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
+# summary(fit)
+# fitted_values <- predict(fit, dat_model[iTest], type = "response")
+# pred3 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
+# performance(pred3, measure = "auc")@y.values  # AUC
 
-x <- subset(dat_model,select = c(facilityType,
-                                    zip,
-                                    nCritical_prev,
-                                    nNonCritical_prev,
-                                    daysTilExp,
-                                    daysSincePrev,
-                                    avg_neighbor_num_critical,
-                                    avg_neighbor_num_non_critical))
-y <- subset(dat_model,select = nCritical_binary);
-model <- randomForest(x=x,y=y,importance=TRUE)
+# # what happens when you remove the zip code?
+# dat_model <- subset(dat, select = c(nCritical_binary, 
+#                                     facilityType,
+#                                     zip,
+#                                     nCritical_prev,
+#                                     nNonCritical_prev,
+#                                     daysTilExp,
+#                                     daysSincePrev,
+#                                     avg_neighbor_num_critical,
+#                                     avg_neighbor_num_non_critical))
+# dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+# fit <- glm(nCritical_binary ~ .,data = dat_model[iTrain], family = "binomial")
+# summary(fit)
+# fitted_values <- predict(fit, dat_model[iTest], type = "response")
+# pred4 <- prediction(fitted_values, dat_model[iTest]$nCritical_binary)
+# performance(pred4, measure = "auc")@y.values  # AUC
 
-png("../doc/roc.png")
-plot(performance(pred1, "tpr", "fpr"), main="ROC")
-plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,col="blue")
-plot(performance(pred3, "tpr", "fpr"), main="ROC",add = TRUE,col="red")
-legend(0.4,0.3,legend=c("Baseline (AR-1)","Logistic Regression (Original)","Logistic Regression (New Features Included)"),lty=c(1,1),col=c("black","blue","red"))
+# #png("../doc/roc.png")
+# plot(performance(pred1, "tpr", "fpr"), main="ROC")
+# plot(performance(pred2, "tpr", "fpr"), main="ROC",add = TRUE,col="blue")
+# plot(performance(pred3, "tpr", "fpr"), main="ROC",add = TRUE,col="red")
+# plot(performance(pred4, "tpr", "fpr"), main="ROC",add = TRUE,col="green")
+# legend(0.4,0.3,legend=c("Baseline (AR-1)","Logistic Regression (Original)","Logistic Regression (New Features Included)","Logistic Regression (No Zip Codes)"),lty=c(1,1),col=c("black","blue","red"))
+
+
+# play with regularization
+dat_train = dat[iTrain]
+dat_test = dat[iTest]
+
+X_train <- model.matrix(~nCritical_binary + facilityType + zip + nCritical_prev + nNonCritical_prev + daysTilExp + daysSincePrev + avg_neighbor_num_critical + avg_neighbor_num_non_critical -1, dat_train)
+Y_train <- X_train[,1]
+X_train <- X_train[,-1]
+
+X_test <- model.matrix(~nCritical_binary + facilityType + zip + nCritical_prev + nNonCritical_prev + daysTilExp + daysSincePrev + avg_neighbor_num_critical + avg_neighbor_num_non_critical -1, dat_test)
+Y_test <- X_test[,1]
+X_test <- X_test[,-1]
+
+fit <- glmnet(X_train,Y_train,family="binomial",alpha=0)
+Yhat_test <- predict(fit, X_test, type = "response")
+pred <- prediction(Yhat_test, matrix(Y_test,nrow=length(Y_test),ncol=ncol(Yhat_test)))
+perf = performance(pred,"auc")@y.values
+
 ```
 
 
