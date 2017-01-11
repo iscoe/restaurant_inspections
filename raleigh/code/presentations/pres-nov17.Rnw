@@ -1,0 +1,318 @@
+%% LyX 2.2.1 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[10pt]{beamer}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\graphicspath{ {../../figs/pres-20161117/} }  % relative path
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+\usepackage{url}
+\ifx\hypersetup\undefined
+\AtBeginDocument{%
+\hypersetup{unicode=true,pdfusetitle,
+bookmarks=true,bookmarksnumbered=false,bookmarksopen=false,
+breaklinks=false,pdfborder={0 0 0},pdfborderstyle={},backref=false,colorlinks=false}
+}
+\else
+\hypersetup{unicode=true,pdfusetitle,
+bookmarks=true,bookmarksnumbered=false,bookmarksopen=false,
+breaklinks=false,pdfborder={0 0 0},pdfborderstyle={},backref=false,colorlinks=false}
+\fi
+\usepackage{breakurl}
+
+\makeatletter
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LyX specific LaTeX commands.
+\providecommand{\LyX}{\texorpdfstring%
+{L\kern-.1667em\lower.25em\hbox{Y}\kern-.125emX\@}
+{LyX}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Textclass specific LaTeX commands.
+% this default might be overridden by plain title style
+\newcommand\makebeamertitle{\frame{\maketitle}}%
+% (ERT) argument for the TOC
+\AtBeginDocument{%
+\let\origtableofcontents=\tableofcontents
+\def\tableofcontents{\@ifnextchar[{\origtableofcontents}{\gobbletableofcontents}}
+\def\gobbletableofcontents#1{\origtableofcontents}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+%\usetheme{PaloAlto}
+\usetheme{Boadilla}
+\usecolortheme{seagull}
+
+\makeatother
+
+\begin{document}
+
+<<setup, include=FALSE, echo = FALSE, results= "hide">>=
+library(knitr)
+opts_chunk$set(fig.path='figure/beamer-',fig.align='center',fig.show='hold',
+               size='footnotesize', fig.width = 6, fig.height = 6)
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(magrittr))
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(plyr))
+suppressPackageStartupMessages(library(ROCR))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(bit64))
+suppressPackageStartupMessages(library(randomForest))
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(xtable))
+@
+
+
+<<readData, echo = FALSE, results = "hide">>=
+dat <- fread("../../data/merged.csv", 
+             colClasses = c("character", "integer", "character", "character", "character", 
+                            "character", "character", "character", "character", "character", 
+                            "character", "numeric", "character", "numeric", "numeric", "character", 
+                            "character", "character", "character", "integer", "numeric", 
+                            "character", "numeric", "logical", "numeric", "integer", "integer", 
+                            "integer", "integer", "numeric", "numeric", "numeric", "numeric", 
+                            "character", "character", "integer", "integer", "integer", "numeric", 
+                            "numeric", "numeric", "character", "character", "logical", "numeric", 
+                            "integer", "character", "integer", "numeric", "numeric", "character", 
+                            "logical", "logical", "logical", "logical", "logical", "logical", 
+                            "logical", "logical", "logical", "logical", "logical", "logical", 
+                            "logical", "logical", "logical", "logical", "logical", "logical", 
+                            "logical", "logical"))
+dat[ , zip := as.character(zip)]
+dat[grepl("Elderly Nutrition Sites", FacilityType), FacilityType := "Elderly Sites"]
+dat[ , Date := ymd_hms(Date)]
+@
+
+\title{Raleigh Restaurant Inspections}
+
+\author{JHUAPL}
+\date{November 17, 2016}
+\makebeamertitle
+
+
+%%%%%%%%%%%%%%%%%%%%% Data Description. %%%%%%%%%%%%%%%%%%%%% 
+\section{Data Description}
+
+\begin{frame}{Data Description}
+
+\begin{itemize}
+\item Data from 9/21/2012 to 11/03/2016. 
+\item 2,809 facilities (1,867 are restaurants)
+\item 18.469 inspections
+\item Cities in Wake County 
+\begin{itemize}
+\item top 5: Raleigh, Cary, Wake Forest, Apex, Morrisville
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%% Exploratory. %%%%%%%%%%%%%%%%%%%%% 
+\section{Exploratory}
+
+\begin{frame}[fragile]{Number of Critical Violations}
+<<numViolations, echo = FALSE, fig.width = 5, fig.height = 3>>=
+ggplot(dat, aes(num_critical)) + geom_histogram(binwidth = 1, color = "black", 
+                                                fill = "lightblue") + 
+  labs(title = "Histogram of Number of Critical Violations") + 
+  xlab("Critical Violations") + 
+  ylab("Count")
+ggplot(dat, aes(num_critical + num_non_critical, Score)) + geom_point() +
+  labs(title = "Score vs. Number of All (Critical+Non-Critical) Violations") + 
+  xlab("Critical + Non-Critical Violations") + 
+  ylab("Score")
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+<<scores, echo = FALSE, fig.width = 5, fig.height = 3>>=
+ggplot(dat, aes(num_critical + num_non_critical, Score)) + 
+  geom_point(size = 0.8) +
+  labs(title = "Score vs. Number of All (Critical+Non-Critical) Violations") + 
+  xlab("Critical + Non-Critical Violations") + 
+  ylab("Score")
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+<<violationByFacilityType, echo = FALSE, fig.width = 4.5, fig.height = 3.5>>=
+
+ggplot(dat, aes(FacilityType, num_critical)) + 
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 40, hjust = 1)) + 
+  labs(title = "Critical Violations by Facility Type") + 
+  xlab("Facility Type") + 
+  ylab("Critical Violations")
+@
+\end{frame}
+
+
+\begin{frame}[fragile]
+<<numObsTimeseries, echo = FALSE, fig.width = 5, fig.height = 3>>=
+dat[ , .(num_inspections = uniqueN(Date)), by = HSISID] %>% 
+  ggplot(aes(num_inspections)) + geom_histogram(binwidth = 1, color = "black", 
+                                                fill = "lightblue") + 
+  labs(title = "Number of Inspections per Restaurant") + 
+  xlab("Number of Inspections") + 
+  ylab("Count")
+@
+\end{frame}
+
+
+\begin{frame}{Other Variables in Model / Other Data Sources}
+
+Besides number of previous critical violations, days from last inspection, and
+days since opening (extracted from inspections), other variables include: 
+
+\begin{itemize}
+\item Geographical Information
+\begin{itemize}
+\item Average Number of Critical Violations for all Prior Inspections of Nearest 5 Neighbors
+\end{itemize}
+\item Census data: extracted income information by ZIP
+\begin{itemize}
+\item Median Household Income
+\item Percent below Poverty Line
+\end{itemize}
+\item Yelp data: extracted information on restaurants
+\begin{itemize}
+\item Rating (out of 5 stars)
+\item Price (\$-\$\$\$\$)
+\item Restaurant Category (top 20, e.g. Mexican, Sushi, Chinese, Coffee)
+\end{itemize}
+\end{itemize}
+
+What is NOT in model: Inspector information, ZIP code
+Also not in because it failed: Restaurant Density
+\end{frame}
+
+
+\begin{frame}
+\includegraphics[scale=0.4]{leaflet.png}
+\end{frame}
+
+
+\begin{frame}
+\includegraphics[scale=0.4]{leaflet-2.png}
+\end{frame}
+
+
+%%%%%%%%%%%%%%%%%%%%%% Modelling. %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+<<prepareDataForModel, echo = FALSE, results = "hide">>=
+dat[ , num_critical_binary := factor(num_critical >= 1)]
+yelp_cats <- c("hotdogs", "sandwiches", "pizza", "tradamerican", "burgers", 
+               "mexican", "grocery", "breakfast_brunch", "coffee", "chinese", 
+               "italian", "newamerican", "chicken_wings", "delis", "bars", 
+               "salad", "seafood", "bbq", "bakeries", "sushi")
+dat_model <- subset(dat, select = c("num_critical_binary", "Date",
+                                    "FacilityType",
+                                    "num_critical_previous",
+                                    "num_non_critical_previous",
+                                    "num_critical_mean_previous",
+                                    "num_non_critical_mean_previous",
+                                    "days_from_open_date",
+                                    "days_since_previous_inspection",
+                                    "Median_household_income_dollars",
+                                    "Percent_Families_Below_Poverty_Line", 
+                                    "avg_neighbor_num_critical", 
+                                    "rating", "price", yelp_cats  # yelp
+))
+dat_model <- dat_model[complete.cases(dat_model)]  # make complete ONLY for quick modelling
+dat_model[ , price := factor(price, levels = c("$", "$$", "$$$", "$$$$"))]
+
+# Make train/test splits. 
+train <- dat_model[Date < as.POSIXct("2016-01-01")]
+test <- dat_model[Date >= as.POSIXct("2016-01-01")]
+train[ , Date := NULL]
+test[ , Date := NULL]
+@
+
+<<fitLogisticRegModel, echo = FALSE, results = "hide">>=
+# Fit a baseline model using only num_critical_previous as sole predictor. 
+fit_baseline <- glm(num_critical_binary ~ num_critical_previous, data = train, family = "binomial")
+fitted_baseline <- predict(fit_baseline, newdata = test, type = "response")
+pred_baseline <- prediction(fitted_baseline, test$num_critical_binary)
+round(performance(pred_baseline, measure = "auc")@y.values[[1]], 3)
+
+fit <- glm(num_critical_binary ~ ., data = train, family = "binomial")
+fitted_values <- predict(fit, newdata = test, type = "response")
+pred <- prediction(fitted_values, test$num_critical_binary)
+round(performance(pred, measure = "auc")@y.values[[1]], 3)
+@
+
+
+\begin{frame}[fragile]
+
+Logistic regression model trained on 2012-2015, tested on 2016 (Jan-Nov), approx. 70/30 split. 
+The AUC on test-set is 
+\Sexpr{round(performance(pred, measure = "auc")@y.values[[1]], 3)}.
+
+<<performance, echo = FALSE, fig.width = 3.5, fig.height = 3.5>>=
+# ROC.
+plot(performance(pred, "tpr", "fpr"), main="ROC", col = "blue")
+plot(performance(pred_baseline, "tpr", "fpr"), main="ROC", add=TRUE, col = "red")
+abline(0, 1, lty=2)
+# legend("bottomright", c("Baseline", "Full model", "Chance level"), 
+#        col = c("red", "blue", "black"), lty = c(1, 1, 2))
+@
+\end{frame}
+
+
+\begin{frame}{Next Steps}
+\begin{itemize}
+\item For binary response, what threshold would be most useful?
+\begin{itemize}
+\item Results for cutoffs of 2, 3, 4, or 5 are similar (AUC 0.73-0.77) - beyond that gets rare
+\end{itemize}
+\item Class imbalance
+\item Variable selection techniques
+\item To model counts, use a different model and performance measure
+\item How to make use of items that don't match from Yelp, Google Places
+\item Previous values seem quite useful: can me model those better (not just use one previous but all previous)
+\end{itemize}
+\end{frame}
+
+
+%%%%%%%%% Appendix %%%%%%%%%%%
+
+\begin{frame}[fragile]{Appendix A}
+<<scoresNumCriticalOnly, echo = FALSE, fig.width = 5, fig.height = 3>>=
+ggplot(dat, aes(num_critical, Score)) + geom_point() +
+  labs(title = "Score vs. Number of Critical Violations") + 
+  xlab("Critical Violations") + 
+  ylab("Score")
+@
+\end{frame}
+
+
+\begin{frame}[fragile]{Appendix B}
+<<varImp, fig.height = 4.5, fig.width = 6, echo = FALSE>>=
+rf <- randomForest(factor(num_critical_binary) ~ . - FacilityType, data = train)
+varImpPlot(rf, main = "Variable Importance Plot (Random Forest)", cex = 0.75)
+@
+\end{frame}
+
+
+
+
+<<corr, echo = FALSE, fig.width = 5, fig.height = 3, results = 'hide'>>=
+income_cols <- c("Median_family_income_dollars", 
+                 "Median_household_income_dollars", 
+                 "Per_capita_income_dollars", 
+                 "Percent_Families_Below_Poverty_Line", 
+                 "Percent_Food_Stamp/SNAP_benefits_in_the_past_12_months")
+dat_income <- dat[ , lapply(.SD, unique), by = zip, .SDcols = income_cols]
+dat_income <- dat_income[ , !"zip", with = FALSE]
+corr <- cor(dat_income)
+@
+
+
+\end{document}

@@ -207,9 +207,9 @@ x <- train
 x$num_critical_binary <- NULL
 x <- as.matrix(x)
 #remove num_critical_binaryTrue and num_critical_binaryFalse
-fit = glmnet(x = x, y = y, family = "binomial")
-summary(fit)
-fitted_values <- predict(fit, newdata = test, type="response")
+# fit = glmnet(x = x, y = y, family = "binomial")
+# summary(fit)
+# fitted_values <- predict(fit, newdata = test, type="response")
 ```
 
 ```{r logisticModel}
