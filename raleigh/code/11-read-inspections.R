@@ -6,6 +6,7 @@ library(magrittr)
 library(lubridate)
 library(sp)
 library(geosphere)
+library(knitr)
 
  
 #  Read in data. ----------------------------------------------------------
@@ -30,6 +31,12 @@ inspection[ , .N, by = Type]
 inspection[ , .N / nrow(inspection), by = Type]  # re-inspections approx. 1.4% of data
 inspection <- subset(inspection, Type != "Re-Inspection")
 
+# Look at date range. 
+inspection[ , min(Date)]
+inspection[ , max(Date)]
+violation[ , min(InspectDate)]
+violation[ , max(InspectDate)]
+
 # Examine how well the datasets would merge.
 inspection[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
 violation[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
@@ -46,6 +53,21 @@ setdiff(restaurant_info$HSISID, inspection$HSISID) %>% length()
 violation[ , unique(ViolationCode)]  # show all codes , ~ 300 of them.
 violation[ , .N, by = ViolationCode][order(-N)] %>% 
   write_csv(path = "raleigh/data/violation-freq.csv")  # write out frequencies
+
+top_codes <- violation[ , .N, by = ViolationCode][order(-N)][1:10, ViolationCode]
+hasViolation <- function(code, violationVec){ any(violationVec == code) }
+top_codes_freq <- violation[ , lapply(top_codes, hasViolation, ViolationCode), 
+           by = .(HSISID, InspectDate)]
+setnames(top_codes_freq, paste0("V", 1:10), top_codes)
+top_codes_df <- top_codes_freq[ , lapply(.SD, mean), .SDcols = top_codes] %>% 
+  t() %>% 
+  data.frame()
+colnames(top_codes_df) <- "Frequency"
+top_codes_df$code <- rownames(top_codes_df)
+top_codes_df <- subset(top_codes_df, select = c("code", "Frequency"))  # re-order columns
+write_csv(top_codes_df, 
+          path = "raleigh/data/violation-freq-top-codes.csv")  # write out frequencies
+kable(top_codes_df, digits = 3, row.names = FALSE)
 
 # Each violation code can take on different levels of `critical`, suggesting
 # it is not the code that is critical or not, but how severely code was violated.
