@@ -62,6 +62,9 @@ digraph Workflow {
   presNov17 [label=<pres-Nov17.Rnw<br/>
 <font color="red">merged.csv</font><br/>
 <font color="blue">pres-Nov17.pdf (slides)</font>>]
+  modelling [label=<24-modelling.R<br/>
+<font color="red">merged.csv</font><br/>
+<font color="blue">various plots</font>>]
   }
   
   # Edges. 
@@ -76,5 +79,6 @@ digraph Workflow {
   mergeInspectionsCensusYelp -> exploratorySpatial
   mergeInspectionsCensusYelp -> restaurantDensity
   mergeInspectionsCensusYelp -> presNov17
+  mergeInspectionsCensusYelp -> modelling
   
 }

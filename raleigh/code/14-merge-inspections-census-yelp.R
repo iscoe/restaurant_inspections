@@ -14,6 +14,8 @@ yelp <- read_csv("raleigh/data/yelp.csv") %>% data.table()
 
 
 # Merge inspections and census by zip.  -----------------------------------
+inspections[ , .(N = .N, unique_HSISID = uniqueN(HSISID))]
+
 # Examine mis-matches. 
 setdiff(census$zip, inspections$zip)
 setdiff(inspections$zip, census$zip)
