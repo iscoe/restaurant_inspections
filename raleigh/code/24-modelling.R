@@ -18,7 +18,7 @@ library(glmnet)
 library(xtable)
 source("syracuse/code/simulated_date_diff_mean.R")
 
-inspectors_differ <- FALSE  # CHANGE here whether to subset to inspectors that differ
+inspectors_differ <- FALSE  # CHANGE here whether to subset to inspectors that differ (FALSE = all of the data)
 
 # Read data.  -------------------------------------------------------------
 dat <- fread("raleigh/data/merged.csv", 
@@ -221,7 +221,7 @@ legend("bottomright", c('Baseline', 'Logistic', 'Logistic, L1 Reg',
                         'Logistic, L2 Reg','Logistic, L1+L2 Reg', 'Random Forest', 
                         'Chance Level'),
        col=c('black','blue','darkgreen','red','violet','orange', 'black'),
-       lty=c(1,1,1,1,1,1,2), cex = 0.8)
+       lty=c(1,1,1,1,1,1,2), cex = 0.95)
 dev.off()  # close figure
 auc_df[6,] <- c("Random Forest", 
                 round(performance(pred, measure = "auc")@y.values[[1]], 3), 
@@ -312,12 +312,12 @@ dat_model <- setupModelData(dat, c("num_critical", "Date", "HSISID",  # HSISID o
                                    "avg_neighbor_num_critical", 
                                    "rating", "price", yelp_cats), 
                             inspectors_differ)
-dat_model[ , Date := NULL]  # date no longer needed
+dat_model[ , Date := as.Date(Date)]  # date no longer needed
 # Make train/test splits.  
-X_train <- dat_model[train == TRUE, !c("train", "num_critical"), with = FALSE] %>% 
+X_train <- dat_model[train == TRUE, !c("train", "num_critical", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_train <- dat_model[train == TRUE, "num_critical", with = FALSE] %>% as.matrix()
-X_test <- dat_model[train == FALSE, !c("train", "num_critical"), with = FALSE] %>% 
+X_test <- dat_model[train == FALSE, !c("train", "num_critical", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_test <- dat_model[train == FALSE, "num_critical", with = FALSE] %>% as.matrix()
 
@@ -330,7 +330,8 @@ coef(cvfit, s = "lambda.min") %>% as.matrix() %>% round(digits = 2)
 coef(cvfit, s = "lambda.1se") %>% as.matrix() %>% round(digits = 2)
 Yhat_test <- predict(cvfit, newx = X_test, s = "lambda.min", type = "response")
 RMSE <- sqrt(mean((Y_test - Yhat_test)^2))
-print(paste("The RMSE for Poisson model is:", RMSE))
+print(paste0("The RMSE for Poisson model is (inspectors differ = ", inspectors_differ, 
+             ") is ", RMSE))
 png(paste0("raleigh/figs/poisson-predicted" , 
            ifelse(inspectors_differ == TRUE, "-inspectors-differ.png", ".png")),
     width = 600, height = 350)
@@ -352,3 +353,10 @@ setcolorder(coef_poisson, c("Variable", "Coefficient"))
 coef_poisson <- coef_poisson[Coefficient > 0][order(-Coefficient)]
 kable(coef_poisson)
 xtable(coef_poisson)
+
+# Run Chicago simulation. 
+days_saved_poisson <- simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                         scores = -Yhat_test[index_first_two_months], 
+                         pos = Y_test[index_first_two_months])
+print(paste("The days saved for Poisson model is:", 
+            round(as.numeric(days_saved_poisson), 2)))
