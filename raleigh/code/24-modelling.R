@@ -304,7 +304,7 @@ coef(cvfit, s = "lambda.1se") %>% as.matrix() %>% round(digits = 2)
 Yhat_test <- predict(cvfit, newx = X_test, s = "lambda.min", type = "response")
 RMSE <- sqrt(mean((Y_test - Yhat_test)^2))
 print(paste("The RMSE for Poisson model is:", RMSE))
-png(paste("raleigh/figs/poisson-predicted" , 
+png(paste0("raleigh/figs/poisson-predicted" , 
           ifelse(inspectors_differ == TRUE, "-inspectors-differ.png", ".png")),
     width = 600, height = 350)
 plot(Yhat_test, Y_test, pch = 19, cex = 0.5, 
