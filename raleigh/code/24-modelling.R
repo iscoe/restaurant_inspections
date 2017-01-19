@@ -115,8 +115,8 @@ Y_test <- dat_model[train == FALSE, "num_critical_binary", with = FALSE] %>% as.
 # Baseline logistic regression models.  -------------------------------------
 # Initialize AUC data.frame. 
 auc_df <- data.frame(model = rep(NA, 6), AUC = rep(NA, 6), days_saved = rep(NA, 6))
-png(paste0("raleigh/figs/roc", ifelse(inspectors_differ, "-inspectors-differ.png", ".png")),
-    width = 600, height = 400)
+pdf(paste0("raleigh/figs/roc", ifelse(inspectors_differ, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 6)
 
 # Fit a baseline model using only num_critical_previous as sole predictor. 
 fit_baseline <- glm(num_critical_binary ~ num_critical_previous, 
@@ -230,8 +230,8 @@ auc_df[6,] <- c("Random Forest",
                                                pos = Y_test[index_first_two_months]), 3))
 
 # Random forest variable importance. 
-png(paste0("raleigh/figs/var-imp", ifelse(inspectors_differ, "-inspectors-differ.png", ".png")),
-    width = 600, height = 400)
+pdf(paste0("raleigh/figs/var-imp", ifelse(inspectors_differ, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 6)
 varImpPlot(fit_RF, main = "Random Forest Variable Importance", cex = 0.75)
 dev.off()
 
@@ -332,9 +332,9 @@ Yhat_test <- predict(cvfit, newx = X_test, s = "lambda.min", type = "response")
 RMSE <- sqrt(mean((Y_test - Yhat_test)^2))
 print(paste0("The RMSE for Poisson model is (inspectors differ = ", inspectors_differ, 
              ") is ", RMSE))
-png(paste0("raleigh/figs/poisson-predicted" , 
-           ifelse(inspectors_differ == TRUE, "-inspectors-differ.png", ".png")),
-    width = 600, height = 350)
+pdf(paste0("raleigh/figs/poisson-predicted" , 
+           ifelse(inspectors_differ == TRUE, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 5)
 plot(Yhat_test, Y_test, pch = 19, cex = 0.5, 
      main = "Actual vs. Predicted Number of Critical Violations\nfor Poisson Model with L1 Regularization", 
      xlab = "Predicted Critical Violations", 
