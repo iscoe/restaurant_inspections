@@ -21,8 +21,11 @@ library(sp)
 library(geosphere)
 library(randomForest)
 library(glmnet)
+library(xtable)
 rf <- colorRampPalette(rev(brewer.pal(11,'Spectral')))
 r <- rf(32)
+
+source("simulated_date_diff_mean.R")
 ```
 
 ```{r readData}
@@ -109,19 +112,19 @@ a cut-off at 1 critical violation is necessarily the best idea. But it is easier
 to look at accuracy at least. 
 
 ```{r logisticModel}
-
-iTrain = dat[,isTest]==FALSE
-iTest = dat[,isTest]==TRUE
+iTrain = as.Date(dat[,date],"%m/%d/%Y") < as.Date("01/01/2016","%m/%d/%Y") #dat[,isTest]==FALSE
+iTest = as.Date(dat[,date],"%m/%d/%Y") >= as.Date("07/01/2016","%m/%d/%Y") #dat[,isTest]==TRUE
 isRestaurant = dat[,facilityType]=="Restaurant"
 dat[ , nCritical_binary := nCritical >= 1]
 cols <- 'zip'
 dat[,(cols):=lapply(.SD, as.factor),.SDcols=cols] # convert zip to factor
 
 aucs = matrix(data=NA,ncol=6,nrow=2)
+timeSavings = matrix(data=NA,ncol=6,nrow=2)
 
 experiments = c(1,2)
 for (i in experiments) {
-if (i==1) {
+if (i==2) {
 dat_train = dat[iTrain & isRegInspection & isRestaurant]
 dat_test = dat[iTest & isRegInspection & isRestaurant]
 } else {
@@ -137,19 +140,22 @@ X_test <- model.matrix(~nCritical_binary + alcLicense + zip + nCritical_prev + n
 Y_test <- X_test[,2]
 X_test <- X_test[,-c(1,2)]
 
+date_test <- dat_test[,date]
+
 # Baseline - predict from number of previous violations
 fit <- glmnet(X_train[,c(21,22)],Y_train,alpha=0,lambda=0)
 Yhat_test <- predict(fit,X_test[,c(21,22)],type="link")
 pred <- prediction(Yhat_test, Y_test)
 perf = performance(pred,"auc")@y.values
 aucs[i,1] <- as.numeric(perf)
-if (i==1){
+if (i==2){
     jpeg("roc_restaurantsOnly.jpg")
 plot(performance(pred, "tpr", "fpr"), main="ROC (Regular Inspections, Restaurants Only)", lty = 2)
 } else {
     jpeg("roc_allFacilities.jpg")
 plot(performance(pred, "tpr", "fpr"), main="ROC (Regular Inspections, All Facilities)", lty = 2)
 }
+timeSavings[i,1] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test),Y_test)
 
 # Random Forest
 fit_RF <- randomForest(X_train,as.factor(Y_train),importance = TRUE)
@@ -159,6 +165,7 @@ pred <- prediction(Yhat_test, Y_test)
 perf = performance(pred,"auc")@y.values
 aucs[i,2] <- as.numeric(perf)
 plot(performance(pred, "tpr", "fpr"), add=TRUE)
+timeSavings[i,2] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test),Y_test)
 
 # Logistic with no regularization
 fit <- glmnet(X_train,Y_train,alpha=0,lambda=0)
@@ -169,6 +176,7 @@ aucs[i,3] = as.numeric(perf)
 plot(performance(pred, "tpr", "fpr"), col = "green", add=TRUE)
 # fit <- glmnet(X_train,Y_train,alpha=0.5,lambda=fit$lambda[bestInd])
 # coef = coefficients(fit)
+timeSavings[i,3] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test),Y_test)
 
 # 
 # Logistic with l1 regularization only
@@ -183,6 +191,8 @@ pred <- prediction(Yhat_test[,bestInd], Y_test)
 plot(performance(pred, "tpr", "fpr"), add = TRUE, col = "red")
 #fit <- glmnet(X_train,Y_train,alpha=0.5,lambda=fit$lambda[bestInd])
 #coef = coefficients(fit)
+timeSavings[i,4] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test[,bestInd]),Y_test)
+
 
 # Logistic with l2 regularization only
 fit <- glmnet(X_train,Y_train,alpha=0)
@@ -196,6 +206,7 @@ pred <- prediction(Yhat_test[,bestInd], Y_test)
 plot(performance(pred, "tpr", "fpr"), add = TRUE, col = "blue")
 fit <- glmnet(X_train,Y_train,alpha=0,lambda=fit$lambda[bestInd])
 coef = coefficients(fit)
+timeSavings[i,5] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test[,bestInd]),Y_test)
 
 # Logistic with both l1 and l2
 fit <- glmnet(X_train,Y_train,alpha=0.5)
@@ -209,6 +220,8 @@ pred <- prediction(Yhat_test[,bestInd], Y_test)
 plot(performance(pred, "tpr", "fpr"), col = "violet", add = TRUE)
 fit <- glmnet(X_train,Y_train,alpha=0.5,lambda=fit$lambda[bestInd])
 coef = coefficients(fit)
+timeSavings[i,6] <- simulated_date_diff_mean(as.Date(date_test,"%m/%d/%Y"),as.numeric(Yhat_test[,bestInd]),Y_test)
+xtable(as.matrix(coef),digits=c(0,4))
 
 if (i==1) {
     legend(0.6,0.6,c('Baseline','Random Forest','Logistic, No Reg','Logistic, L1 Reg','Logistic, L2 Reg','Logistic, L1+L2 Reg'),col=c('black','black','green','red','blue','violet'),lty=c(2,1,1,1,1,1))
@@ -224,24 +237,13 @@ varImpPlot(fit_RF, main = "RF Variable Importance (Regular Inspections, All Faci
     dev.off()
 }
 
+xtable(t(aucs),digits=c(0,4,4))
+
+xtable(t(timeSavings))
+
 }
 ```
 
-## TODO
-- Incorporate features extracted from additional data sets (liquor licenses, crime, census, complains, weather, yelp reviews)
-- Try different types of models (ridge regression, random forest, svm)
-- Use cross-validation or define a reasonable test set
+```
 
-## Some questions
-
-# Alex's coments all valid
-- Do we want to include all facilities, or just restaurants? 
-- Is it ok to use previous observations? 
-- Should we threshold? If so, where is best place to threshold? 
-- Are there violation codes that are predictive of whether the inspections will go poorly the next time?
-
-# Additional Chris comments
-- Should we predit on a per-inspection or a per-facility basis? Chicago was per-inspection but I think per-facility makes more sense.
-- Merits of cross-validation vs. test set? Setting up a good cross-validation scheme could be difficult. I would propose using one year of data for test.
-- This is essentailly a classification problem, so we should use a classifier (svm or random forest)
 - 

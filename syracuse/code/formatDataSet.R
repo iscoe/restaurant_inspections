@@ -74,12 +74,12 @@ for (id in restaurantId) {
             daysSinceLastInspection <- as.numeric(as.Date(date,"%m/%d/%Y") - as.Date(previousInspectionDate,"%m/%d/%Y"))
         }
         
-        testDate = "01/01/2016"
-        if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
-            isTest <- TRUE
-        } else {
-            isTest <- FALSE
-        }
+        # testDate = "01/01/2016"
+        # if (as.Date(testDate,'%m/%d/%Y') - as.Date(date,"%m/%d/%Y") <= 0) {
+        #     isTest <- TRUE
+        # } else {
+        #     isTest <- FALSE
+        # }
         
         dat_thisRestaurant <- data.table(ID = id,
                                              name = facilityName,
@@ -94,7 +94,7 @@ for (id in restaurantId) {
                                              daysTilExp = daysRemainingOnPermit,
                                              daysSincePrev = daysSinceLastInspection,
                                              alcLicense = sellsAlcohol,
-                                             isTest = isTest,
+                                             #isTest = isTest,
                                              X = lon,
                                              Y = lat)
         
