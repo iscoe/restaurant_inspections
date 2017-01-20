@@ -16,8 +16,9 @@ library(geosphere)
 library(randomForest)
 library(glmnet)
 library(xtable)
+source("syracuse/code/simulated_date_diff_mean.R")
 
-inspectors_differ <- TRUE  # CHANGE here whether to subset to inspectors that differ
+inspectors_differ <- FALSE  # CHANGE here whether to subset to inspectors that differ (FALSE = all of the data)
 
 # Read data.  -------------------------------------------------------------
 dat <- fread("raleigh/data/merged.csv", 
@@ -80,7 +81,6 @@ setupModelData <- function(dat, subset_columns, inspectors_differ = FALSE){
   dat_model[ , FacilityType := NULL]  # no longer needed as it is has cbind'ed in
   
   dat_model[ , train := Date < as.POSIXct("2016-01-01")]
-  dat_model[ , Date := NULL]  # date no longer needed
   dat_model[ , .N, by = train] %>% print()
   return(dat_model)
 }
@@ -104,19 +104,19 @@ dat_model <- setupModelData(dat, c("num_critical_binary", "Date", "HSISID",  # H
                             inspectors_differ)
 
 # Make train/test splits.  ------------------------------------------------
-X_train <- dat_model[train == TRUE, !c("train", "num_critical_binary"), with = FALSE] %>% 
+X_train <- dat_model[train == TRUE, !c("train", "num_critical_binary", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_train <- dat_model[train == TRUE, "num_critical_binary", with = FALSE] %>% as.matrix()
-X_test <- dat_model[train == FALSE, !c("train", "num_critical_binary"), with = FALSE] %>% 
+X_test <- dat_model[train == FALSE, !c("train", "num_critical_binary", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_test <- dat_model[train == FALSE, "num_critical_binary", with = FALSE] %>% as.matrix()
 
 
 # Baseline logistic regression models.  -------------------------------------
 # Initialize AUC data.frame. 
-auc_df <- data.frame(model = rep(NA, 5), AUC = rep(NA, 5))
-png(paste0("raleigh/figs/roc", ifelse(inspectors_differ, "-inspectors-differ.png", ".png")),
-    width = 600, height = 400)
+auc_df <- data.frame(model = rep(NA, 6), AUC = rep(NA, 6), days_saved = rep(NA, 6))
+pdf(paste0("raleigh/figs/roc", ifelse(inspectors_differ, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 6)
 
 # Fit a baseline model using only num_critical_previous as sole predictor. 
 fit_baseline <- glm(num_critical_binary ~ num_critical_previous, 
@@ -128,8 +128,17 @@ fitted_baseline <- predict(fit_baseline,
 pred <- prediction(fitted_baseline, dat_model[train == FALSE, num_critical_binary])
 plot(performance(pred, "tpr", "fpr"), main="ROC", col = "black")
 abline(0, 1, lty=2)
+
+# Run the Chicago simulation.
+dat_model[ , Date := as.Date(Date)]
+index_first_two_months <- dat_model[train == FALSE, which(Date <= as.POSIXct("2016-03-04"))]
 auc_df[1,] <- c("Baseline", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3),
+                round(
+                  simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                           scores = fitted_baseline[index_first_two_months], 
+                                           pos = dat_model[train == FALSE][index_first_two_months, num_critical_binary]), 
+                  3))
 
 fit <- glm(num_critical_binary ~ ., 
            data = dat_model[train == TRUE, !"train", with = FALSE], 
@@ -139,9 +148,15 @@ fitted_values <- predict(fit,
                          type = "response")
 pred <- prediction(fitted_values, dat_model[train == FALSE, num_critical_binary])
 auc_df[2,] <- c("Logistic", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3), 
+                round(simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                               scores = fitted_values[index_first_two_months], 
+                                               pos = dat_model[train == FALSE][index_first_two_months, num_critical_binary]), 3))
 plot(performance(pred, "tpr", "fpr"), main="ROC", add = TRUE, col = "blue")
 
+
+# Now that the simulation is complete, remove Date. 
+# dat_model[ , Date := NULL]  # date no longer needed
 
 # Lasso classification with glmnet. -------------------------------------------
 # Logistic regression with L1 regularization. 
@@ -154,7 +169,10 @@ bestInd <- which.max(unlist(perf))
 pred <- prediction(Yhat_test[,bestInd], Y_test)
 plot(performance(pred, "tpr", "fpr"), add = TRUE, col = "darkgreen")
 auc_df[3,] <- c("Logistic L1 Reg", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3), 
+                round(simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                               scores = pred@predictions[[1]][index_first_two_months], 
+                                               pos = Y_test[index_first_two_months]), 3))
 
 # Logistic with L2 regularization only. 
 fit <- glmnet(X_train,Y_train,alpha=0)
@@ -168,7 +186,10 @@ plot(performance(pred, "tpr", "fpr"), add = TRUE, col = "red")
 fit <- glmnet(X_train,Y_train,alpha=0,lambda=fit$lambda[bestInd])
 coef = coefficients(fit)
 auc_df[4,] <- c("Logistic L2 Reg", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3), 
+                round(simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                               scores = pred@predictions[[1]][index_first_two_months], 
+                                               pos = Y_test[index_first_two_months]), 3))
 
 
 # Logistic with both l1 and l2
@@ -183,7 +204,10 @@ plot(performance(pred, "tpr", "fpr"), col = "violet", add = TRUE)
 fit <- glmnet(X_train,Y_train,alpha=0.5,lambda=fit$lambda[bestInd])
 coef = coefficients(fit)
 auc_df[5,] <- c("Logistic L1+L2 Reg", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3), 
+                round(simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                               scores = pred@predictions[[1]][index_first_two_months], 
+                                               pos = Y_test[index_first_two_months]), 3))
 
 
 # Random forest classification model.  ----------------------------------------
@@ -197,14 +221,17 @@ legend("bottomright", c('Baseline', 'Logistic', 'Logistic, L1 Reg',
                         'Logistic, L2 Reg','Logistic, L1+L2 Reg', 'Random Forest', 
                         'Chance Level'),
        col=c('black','blue','darkgreen','red','violet','orange', 'black'),
-       lty=c(1,1,1,1,1,1,2), cex = 0.8)
+       lty=c(1,1,1,1,1,1,2), cex = 0.95)
 dev.off()  # close figure
 auc_df[6,] <- c("Random Forest", 
-                round(performance(pred, measure = "auc")@y.values[[1]], 3))
+                round(performance(pred, measure = "auc")@y.values[[1]], 3), 
+                round(simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                                               scores = pred@predictions[[1]][index_first_two_months], 
+                                               pos = Y_test[index_first_two_months]), 3))
 
 # Random forest variable importance. 
-png(paste0("raleigh/figs/var-imp", ifelse(inspectors_differ, "-inspectors-differ.png", ".png")),
-    width = 600, height = 400)
+pdf(paste0("raleigh/figs/var-imp", ifelse(inspectors_differ, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 6)
 varImpPlot(fit_RF, main = "Random Forest Variable Importance", cex = 0.75)
 dev.off()
 
@@ -229,11 +256,12 @@ dat_model_inspector_full <- setupModelData(dat, c("num_critical_binary",
                                                   "rating", "price", yelp_cats), 
                                            inspectors_differ = FALSE)
 # Need to exclude certain inspectors who are in training set but not in test set. 
+dat_model_inspector_full[ , Date := NULL]  # date no longer needed
 dat_model_inspector_full[ , InspectedBy := as.character(InspectedBy)]
 dat_model_inspector_full <- subset(dat_model_inspector_full, 
-                                !(InspectedBy %in% c("Ginger Johnson", 
-                                                     "Jessica Andrews", 
-                                                     "Marion Wearing")))
+                                   !(InspectedBy %in% c("Ginger Johnson", 
+                                                        "Jessica Andrews", 
+                                                        "Marion Wearing")))
 dat_model_inspector_full[ , .N, by = train] %>% print()
 
 # Make dataset just for classification. 
@@ -270,8 +298,6 @@ print(paste("The RMSE for Poisson model is:", RMSE))
 
 
 
-
-
 # Poisson model ----------------------------------------------
 dat_model <- setupModelData(dat, c("num_critical", "Date", "HSISID",  # HSISID only used for counts, then removed
                                    "FacilityType",
@@ -286,11 +312,12 @@ dat_model <- setupModelData(dat, c("num_critical", "Date", "HSISID",  # HSISID o
                                    "avg_neighbor_num_critical", 
                                    "rating", "price", yelp_cats), 
                             inspectors_differ)
+dat_model[ , Date := as.Date(Date)]  # date no longer needed
 # Make train/test splits.  
-X_train <- dat_model[train == TRUE, !c("train", "num_critical"), with = FALSE] %>% 
+X_train <- dat_model[train == TRUE, !c("train", "num_critical", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_train <- dat_model[train == TRUE, "num_critical", with = FALSE] %>% as.matrix()
-X_test <- dat_model[train == FALSE, !c("train", "num_critical"), with = FALSE] %>% 
+X_test <- dat_model[train == FALSE, !c("train", "num_critical", "Date"), with = FALSE] %>% 
   as.matrix()
 Y_test <- dat_model[train == FALSE, "num_critical", with = FALSE] %>% as.matrix()
 
@@ -303,10 +330,11 @@ coef(cvfit, s = "lambda.min") %>% as.matrix() %>% round(digits = 2)
 coef(cvfit, s = "lambda.1se") %>% as.matrix() %>% round(digits = 2)
 Yhat_test <- predict(cvfit, newx = X_test, s = "lambda.min", type = "response")
 RMSE <- sqrt(mean((Y_test - Yhat_test)^2))
-print(paste("The RMSE for Poisson model is:", RMSE))
-png(paste("raleigh/figs/poisson-predicted" , 
-          ifelse(inspectors_differ == TRUE, "-inspectors-differ.png", ".png")),
-    width = 600, height = 350)
+print(paste0("The RMSE for Poisson model is (inspectors differ = ", inspectors_differ, 
+             ") is ", RMSE))
+pdf(paste0("raleigh/figs/poisson-predicted" , 
+           ifelse(inspectors_differ == TRUE, "-inspectors-differ.pdf", ".pdf")),
+    width = 8, height = 5)
 plot(Yhat_test, Y_test, pch = 19, cex = 0.5, 
      main = "Actual vs. Predicted Number of Critical Violations\nfor Poisson Model with L1 Regularization", 
      xlab = "Predicted Critical Violations", 
@@ -326,4 +354,9 @@ coef_poisson <- coef_poisson[Coefficient > 0][order(-Coefficient)]
 kable(coef_poisson)
 xtable(coef_poisson)
 
-
+# Run Chicago simulation. 
+days_saved_poisson <- simulated_date_diff_mean(dates = dat_model[train==FALSE][index_first_two_months, Date], 
+                         scores = -Yhat_test[index_first_two_months], 
+                         pos = Y_test[index_first_two_months])
+print(paste("The days saved for Poisson model is:", 
+            round(as.numeric(days_saved_poisson), 2)))

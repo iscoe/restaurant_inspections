@@ -1,7 +1,7 @@
 // To generate graph as SVG:
 // dot -Tsvg dep.dot > dep.svg
 // From R, from within main project directory: system("dot -Tsvg raleigh/doc/workflow.dot > raleigh/doc/workflow.svg")
-// Slightlier fancier version: system("unflatten -l 1 raleigh/doc/workflow.dot | dot -Tpng -o raleigh/doc/workflow.png")
+// Slightlier fancier version: system("unflatten -l 1 raleigh/doc/workflow.dot | dot -Tpdf -o raleigh/doc/workflow.pdf")
 // DiagrammeR::grViz("raleigh/doc/workflow.dot")
 digraph Workflow {
   # Nodes. 
